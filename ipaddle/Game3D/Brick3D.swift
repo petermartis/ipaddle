@@ -70,15 +70,13 @@ final class Brick3D {
         return SKColor(red: r * factor, green: g * factor, blue: b * factor, alpha: a)
     }
 
-    private static func quad(_ points: [CGPoint], fill: SKColor, stroke: SKColor) -> SKShapeNode {
-        let path = CGMutablePath()
-        path.addLines(between: points)
-        path.closeSubpath()
-        let shape = SKShapeNode(path: path)
+    private static func quad(_ points: [CGPoint], fill: SKColor, stroke: SKColor,
+                             cornerRadius: CGFloat = 0) -> SKShapeNode {
+        let shape = SKShapeNode(path: Draw.roundedPolygon(points, radius: cornerRadius))
         shape.fillColor = fill
         shape.strokeColor = stroke
         shape.lineWidth = 1
-        shape.lineJoin = .miter
+        shape.lineJoin = .round
         return shape
     }
 
@@ -103,34 +101,44 @@ final class Brick3D {
         // everything far away is dimmer — applied to every face of this brick
         let depthDim = 0.42 + 0.58 * Tunnel.scale(at: boxMin.z)
 
+        // corner rounding shrinks with perspective like everything else
+        let frontRadius = 7 * Tunnel.scale(at: boxMin.z)
+        let backRadius = 7 * Tunnel.scale(at: boxMax.z)
+
         // faint back-face outline: the receding silhouette sells the volume
         node.addChild(quad(b, fill: shaded(color, 0.30 * depthDim),
-                           stroke: SKColor.black.withAlphaComponent(0.4)))
+                           stroke: SKColor.black.withAlphaComponent(0.4),
+                           cornerRadius: backRadius))
 
         // sides facing the camera (toward the tunnel axis), lit as if from above:
         // top faces bright, bottom faces dark, left/right in between
         let cx = (boxMin.x + boxMax.x) / 2
         let cy = (boxMin.y + boxMax.y) / 2
         if cx > 1 { // brick is right of center: its left side is visible
-            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.60 * depthDim), stroke: edgeColor))
+            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.60 * depthDim),
+                               stroke: edgeColor, cornerRadius: backRadius))
         } else if cx < -1 { // right side visible
-            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.60 * depthDim), stroke: edgeColor))
+            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.60 * depthDim),
+                               stroke: edgeColor, cornerRadius: backRadius))
         }
         if cy > 1 { // brick above center: bottom side visible (in shadow)
-            node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.34 * depthDim), stroke: edgeColor))
+            node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.34 * depthDim),
+                               stroke: edgeColor, cornerRadius: backRadius))
         } else if cy < -1 { // top side visible (catches the light)
-            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 1.05 * depthDim), stroke: edgeColor))
+            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 1.05 * depthDim),
+                               stroke: edgeColor, cornerRadius: backRadius))
         }
 
         // front face on top
-        let front = quad(f, fill: shaded(color, depthDim), stroke: edgeColor)
+        let front = quad(f, fill: shaded(color, depthDim), stroke: edgeColor,
+                         cornerRadius: frontRadius)
         front.lineWidth = 1.5
         node.addChild(front)
 
         // specular strip along the top of the front face…
         let highlight = quad([f[3], f[2], lerp(f[2], f[1], 0.22), lerp(f[3], f[0], 0.22)],
                              fill: SKColor.white.withAlphaComponent(0.22 * depthDim),
-                             stroke: .clear)
+                             stroke: .clear, cornerRadius: frontRadius)
         highlight.lineWidth = 0
         node.addChild(highlight)
 
@@ -138,7 +146,7 @@ final class Brick3D {
         // as a lit surface rather than flat color
         let shadowStrip = quad([f[0], f[1], lerp(f[1], f[2], 0.20), lerp(f[0], f[3], 0.20)],
                                fill: SKColor.black.withAlphaComponent(0.24),
-                               stroke: .clear)
+                               stroke: .clear, cornerRadius: frontRadius)
         shadowStrip.lineWidth = 0
         node.addChild(shadowStrip)
         return node

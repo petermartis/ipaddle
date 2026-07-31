@@ -215,11 +215,8 @@ final class GameScene3D: SKScene {
         syncPaddleNode()
     }
 
-    private static func closedPath(_ points: [CGPoint]) -> CGPath {
-        let path = CGMutablePath()
-        path.addLines(between: points)
-        path.closeSubpath()
-        return path
+    private static func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
+        CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
     }
 
     private func setupDepthRing() {
@@ -428,12 +425,17 @@ final class GameScene3D: SKScene {
         }
         let f = [pt(-hw, -hh, 0), pt(hw, -hh, 0), pt(hw, hh, 0), pt(-hw, hh, 0)]
         let b = [pt(-hw, -hh, zBack), pt(hw, -hh, zBack), pt(hw, hh, zBack), pt(-hw, hh, zBack)]
-        paddleFront?.path = GameScene3D.closedPath(f)
-        paddleBack?.path = GameScene3D.closedPath(b)
+        paddleFront?.path = Draw.roundedPolygon(f, radius: 16)
+        paddleBack?.path = Draw.roundedPolygon(b, radius: 16 * Tunnel.scale(at: zBack))
+
+        // rails pull in slightly toward each pane's center so their endpoints
+        // land inside the rounded corners instead of poking past them
+        let fc = Tunnel.project(Vec3(x: paddleXY.x, y: paddleXY.y, z: 0), in: size)
+        let bc = Tunnel.project(Vec3(x: paddleXY.x, y: paddleXY.y, z: zBack), in: size)
         let rails = CGMutablePath()
         for i in 0..<4 {
-            rails.move(to: f[i])
-            rails.addLine(to: b[i])
+            rails.move(to: GameScene3D.lerp(f[i], fc, 0.08))
+            rails.addLine(to: GameScene3D.lerp(b[i], bc, 0.08))
         }
         paddleRails?.path = rails
     }

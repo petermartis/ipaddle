@@ -58,6 +58,41 @@ enum Tunnel {
     }
 }
 
+enum Draw {
+    /// Closed polygon path with rounded corners. The radius is clamped to
+    /// what the polygon's shortest edge can accommodate, so thin or heavily
+    /// perspective-shrunk faces degrade gracefully instead of glitching.
+    static func roundedPolygon(_ points: [CGPoint], radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        guard points.count > 2 else {
+            path.addLines(between: points)
+            return path
+        }
+        var minEdge = CGFloat.greatestFiniteMagnitude
+        for i in 0..<points.count {
+            let a = points[i]
+            let b = points[(i + 1) % points.count]
+            minEdge = min(minEdge, hypot(b.x - a.x, b.y - a.y))
+        }
+        let r = max(0, min(radius, minEdge * 0.45))
+        guard r > 0.5 else {
+            path.addLines(between: points)
+            path.closeSubpath()
+            return path
+        }
+        let start = CGPoint(x: (points[0].x + points[1].x) / 2,
+                            y: (points[0].y + points[1].y) / 2)
+        path.move(to: start)
+        for i in 0..<points.count {
+            let corner = points[(i + 1) % points.count]
+            let next = points[(i + 2) % points.count]
+            path.addArc(tangent1End: corner, tangent2End: next, radius: r)
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
 enum Config3D {
     static let paddleSize = CGSize(width: 180, height: 130) // world units at z = 0
     static let paddleDepth: CGFloat = 34                    // z thickness of the paddle slab
