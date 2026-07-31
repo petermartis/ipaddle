@@ -1,0 +1,380 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BB00000000000000000001 /* iPaddleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000001 /* iPaddleApp.swift */; };
+		BB00000000000000000002 /* GameConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000002 /* GameConfig.swift */; };
+		BB00000000000000000003 /* PhysicsCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000003 /* PhysicsCategory.swift */; };
+		BB00000000000000000004 /* Brick.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000004 /* Brick.swift */; };
+		BB00000000000000000005 /* Levels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000005 /* Levels.swift */; };
+		BB00000000000000000006 /* PowerUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000006 /* PowerUp.swift */; };
+		BB00000000000000000007 /* Paddle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000007 /* Paddle.swift */; };
+		BB00000000000000000008 /* Ball.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000008 /* Ball.swift */; };
+		BB00000000000000000009 /* HighScoreStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000009 /* HighScoreStore.swift */; };
+		BB00000000000000000010 /* SoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000010 /* SoundPlayer.swift */; };
+		BB00000000000000000011 /* MenuScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000011 /* MenuScene.swift */; };
+		BB00000000000000000012 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000012 /* GameScene.swift */; };
+		BB00000000000000000013 /* GameOverScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000013 /* GameOverScene.swift */; };
+		BB00000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000014 /* Assets.xcassets */; };
+		BB00000000000000000017 /* paddle_hit.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000017 /* paddle_hit.wav */; };
+		BB00000000000000000018 /* wall_hit.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000018 /* wall_hit.wav */; };
+		BB00000000000000000019 /* brick_hit.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000019 /* brick_hit.wav */; };
+		BB00000000000000000020 /* brick_break.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000020 /* brick_break.wav */; };
+		BB00000000000000000021 /* powerup.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000021 /* powerup.wav */; };
+		BB00000000000000000022 /* laser.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000022 /* laser.wav */; };
+		BB00000000000000000023 /* lose_life.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000023 /* lose_life.wav */; };
+		BB00000000000000000024 /* level_clear.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000024 /* level_clear.wav */; };
+		BB00000000000000000025 /* game_over.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000025 /* game_over.wav */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AA00000000000000000001 /* iPaddleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iPaddleApp.swift; sourceTree = "<group>"; };
+		AA00000000000000000002 /* GameConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameConfig.swift; sourceTree = "<group>"; };
+		AA00000000000000000003 /* PhysicsCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsCategory.swift; sourceTree = "<group>"; };
+		AA00000000000000000004 /* Brick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brick.swift; sourceTree = "<group>"; };
+		AA00000000000000000005 /* Levels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Levels.swift; sourceTree = "<group>"; };
+		AA00000000000000000006 /* PowerUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerUp.swift; sourceTree = "<group>"; };
+		AA00000000000000000007 /* Paddle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paddle.swift; sourceTree = "<group>"; };
+		AA00000000000000000008 /* Ball.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ball.swift; sourceTree = "<group>"; };
+		AA00000000000000000009 /* HighScoreStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighScoreStore.swift; sourceTree = "<group>"; };
+		AA00000000000000000010 /* SoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundPlayer.swift; sourceTree = "<group>"; };
+		AA00000000000000000011 /* MenuScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuScene.swift; sourceTree = "<group>"; };
+		AA00000000000000000012 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
+		AA00000000000000000013 /* GameOverScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameOverScene.swift; sourceTree = "<group>"; };
+		AA00000000000000000014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AA00000000000000000015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA00000000000000000016 /* ipaddle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ipaddle.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA00000000000000000017 /* paddle_hit.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = paddle_hit.wav; sourceTree = "<group>"; };
+		AA00000000000000000018 /* wall_hit.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = wall_hit.wav; sourceTree = "<group>"; };
+		AA00000000000000000019 /* brick_hit.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = brick_hit.wav; sourceTree = "<group>"; };
+		AA00000000000000000020 /* brick_break.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = brick_break.wav; sourceTree = "<group>"; };
+		AA00000000000000000021 /* powerup.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = powerup.wav; sourceTree = "<group>"; };
+		AA00000000000000000022 /* laser.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = laser.wav; sourceTree = "<group>"; };
+		AA00000000000000000023 /* lose_life.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = lose_life.wav; sourceTree = "<group>"; };
+		AA00000000000000000024 /* level_clear.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = level_clear.wav; sourceTree = "<group>"; };
+		AA00000000000000000025 /* game_over.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = game_over.wav; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DD00000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		CC00000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				CC00000000000000000003 /* ipaddle */,
+				CC00000000000000000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CC00000000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000016 /* ipaddle.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000003 /* ipaddle */ = {
+			isa = PBXGroup;
+			children = (
+				CC00000000000000000004 /* App */,
+				CC00000000000000000005 /* Game */,
+				CC00000000000000000006 /* Scenes */,
+				CC00000000000000000007 /* Support */,
+				CC00000000000000000008 /* Resources */,
+				AA00000000000000000015 /* Info.plist */,
+			);
+			path = ipaddle;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000004 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000001 /* iPaddleApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000005 /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000002 /* GameConfig.swift */,
+				AA00000000000000000003 /* PhysicsCategory.swift */,
+				AA00000000000000000004 /* Brick.swift */,
+				AA00000000000000000005 /* Levels.swift */,
+				AA00000000000000000006 /* PowerUp.swift */,
+				AA00000000000000000007 /* Paddle.swift */,
+				AA00000000000000000008 /* Ball.swift */,
+			);
+			path = Game;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000006 /* Scenes */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000011 /* MenuScene.swift */,
+				AA00000000000000000012 /* GameScene.swift */,
+				AA00000000000000000013 /* GameOverScene.swift */,
+			);
+			path = Scenes;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000007 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000009 /* HighScoreStore.swift */,
+				AA00000000000000000010 /* SoundPlayer.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000008 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000014 /* Assets.xcassets */,
+				CC00000000000000000009 /* Sounds */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000009 /* Sounds */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000017 /* paddle_hit.wav */,
+				AA00000000000000000018 /* wall_hit.wav */,
+				AA00000000000000000019 /* brick_hit.wav */,
+				AA00000000000000000020 /* brick_break.wav */,
+				AA00000000000000000021 /* powerup.wav */,
+				AA00000000000000000022 /* laser.wav */,
+				AA00000000000000000023 /* lose_life.wav */,
+				AA00000000000000000024 /* level_clear.wav */,
+				AA00000000000000000025 /* game_over.wav */,
+			);
+			path = Sounds;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DD00000000000000000002 /* ipaddle */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD00000000000000000007 /* Build configuration list for PBXNativeTarget "ipaddle" */;
+			buildPhases = (
+				DD00000000000000000003 /* Sources */,
+				DD00000000000000000004 /* Frameworks */,
+				DD00000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ipaddle;
+			productName = ipaddle;
+			productReference = AA00000000000000000016 /* ipaddle.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DD00000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					DD00000000000000000002 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = DD00000000000000000006 /* Build configuration list for PBXProject "ipaddle" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = CC00000000000000000001;
+			productRefGroup = CC00000000000000000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DD00000000000000000002 /* ipaddle */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		DD00000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BB00000000000000000014 /* Assets.xcassets in Resources */,
+				BB00000000000000000017 /* paddle_hit.wav in Resources */,
+				BB00000000000000000018 /* wall_hit.wav in Resources */,
+				BB00000000000000000019 /* brick_hit.wav in Resources */,
+				BB00000000000000000020 /* brick_break.wav in Resources */,
+				BB00000000000000000021 /* powerup.wav in Resources */,
+				BB00000000000000000022 /* laser.wav in Resources */,
+				BB00000000000000000023 /* lose_life.wav in Resources */,
+				BB00000000000000000024 /* level_clear.wav in Resources */,
+				BB00000000000000000025 /* game_over.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DD00000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BB00000000000000000001 /* iPaddleApp.swift in Sources */,
+				BB00000000000000000002 /* GameConfig.swift in Sources */,
+				BB00000000000000000003 /* PhysicsCategory.swift in Sources */,
+				BB00000000000000000004 /* Brick.swift in Sources */,
+				BB00000000000000000005 /* Levels.swift in Sources */,
+				BB00000000000000000006 /* PowerUp.swift in Sources */,
+				BB00000000000000000007 /* Paddle.swift in Sources */,
+				BB00000000000000000008 /* Ball.swift in Sources */,
+				BB00000000000000000009 /* HighScoreStore.swift in Sources */,
+				BB00000000000000000010 /* SoundPlayer.swift in Sources */,
+				BB00000000000000000011 /* MenuScene.swift in Sources */,
+				BB00000000000000000012 /* GameScene.swift in Sources */,
+				BB00000000000000000013 /* GameOverScene.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		EE00000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		EE00000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		EE00000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ipaddle/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.petermartis.ipaddle;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		EE00000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ipaddle/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.petermartis.ipaddle;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DD00000000000000000006 /* Build configuration list for PBXProject "ipaddle" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EE00000000000000000001 /* Debug */,
+				EE00000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DD00000000000000000007 /* Build configuration list for PBXNativeTarget "ipaddle" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EE00000000000000000003 /* Debug */,
+				EE00000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DD00000000000000000001 /* Project object */;
+}
