@@ -146,15 +146,18 @@ final class Brick3D {
     /// Canvas padding around the body for glow and drop shadow.
     static let texturePadding: CGFloat = 22
 
-    /// The whole brick as one soft-shaded body:
-    /// drop shadow → body fill → inner-shadow edge roll-off on all four
-    /// sides → top light → corner specular → faint neon rim glow.
+    /// The whole brick as one soft-shaded extruded body:
+    /// drop shadow → swept extrusion toward the vanishing point → pillow
+    /// face with edge roll-off → top light → corner specular → neon rim.
+    /// (extrusionX/Y is the screen-space offset of the brick's back face,
+    /// pointing at the tunnel's vanishing point; zero for center bricks.)
     private static func brickTexture(color: SKColor, width: CGFloat, height: CGFloat,
-                                     radius: CGFloat, tone: CGFloat) -> SKTexture {
+                                     radius: CGFloat, tone: CGFloat,
+                                     extrusionX: CGFloat, extrusionY: CGFloat) -> SKTexture {
         var r: CGFloat = 0, g: CGFloat = 0, b2: CGFloat = 0, a: CGFloat = 0
         color.getRed(&r, green: &g, blue: &b2, alpha: &a)
-        let key = String(format: "brick-%.2f-%.2f-%.2f-%.0fx%.0f-r%.0f-t%.2f",
-                         r, g, b2, width, height, radius, tone)
+        let key = String(format: "brick-%.2f-%.2f-%.2f-%.0fx%.0f-r%.0f-t%.2f-e%.0f,%.0f",
+                         r, g, b2, width, height, radius, tone, extrusionX, extrusionY)
         if let cached = textureCache[key] { return cached }
 
         let base = shaded(color, tone)
@@ -170,7 +173,11 @@ final class Brick3D {
             let rounded = UIBezierPath(roundedRect: rect, cornerRadius: corner)
             let space = CGColorSpaceCreateDeviceRGB()
 
-            // 1. body fill, casting its own soft drop shadow downward
+            // scene y-up → UIKit y-down for the extrusion direction
+            let ex = extrusionX
+            let ey = -extrusionY
+
+            // 1. drop shadow under the whole body (front + extruded back)
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 0, height: 7), blur: 12,
                          color: UIColor.black.withAlphaComponent(0.55).cgColor)
@@ -178,6 +185,24 @@ final class Brick3D {
             cg.addPath(rounded.cgPath)
             cg.fillPath()
             cg.restoreGState()
+
+            // 2. swept extrusion: the body recedes toward the vanishing
+            // point in many small steps, darkening as it goes — a smooth
+            // molded flank rather than a hard side panel
+            if abs(ex) > 0.5 || abs(ey) > 0.5 {
+                let steps = 16
+                for i in stride(from: steps, through: 1, by: -1) {
+                    let t = CGFloat(i) / CGFloat(steps) // 1 = deepest
+                    let stepRect = rect
+                        .offsetBy(dx: ex * t, dy: ey * t)
+                        .insetBy(dx: 1.5 * t, dy: 1.5 * t)
+                    let stepPath = UIBezierPath(roundedRect: stepRect,
+                                                cornerRadius: max(2, corner - 1.5 * t))
+                    cg.setFillColor(shaded(base, 0.30 + 0.35 * (1 - t)).cgColor)
+                    cg.addPath(stepPath.cgPath)
+                    cg.fillPath()
+                }
+            }
 
             // 2. pillow roll-off: an inner shadow bleeding in from every
             // edge, following the rounded contour — this is what makes the
@@ -246,9 +271,23 @@ final class Brick3D {
         let height = f[2].y - f[1].y
         let radius = min(width, height) * 0.26 * wobble
 
+        // extrusion direction: toward the tunnel's vanishing point, growing
+        // with distance from the axis (center bricks show no flank, just as
+        // a real head-on box would)
+        let frontCenter = CGPoint(x: (f[0].x + f[1].x) / 2, y: (f[1].y + f[2].y) / 2)
+        let vanishing = CGPoint(x: sceneSize.width / 2,
+                                y: sceneSize.height / 2 + Tunnel.centerYOffset)
+        let dx = vanishing.x - frontCenter.x
+        let dy = vanishing.y - frontCenter.y
+        let dist = max(hypot(dx, dy), 0.001)
+        let flankLength = min(16, min(width, height) * 0.16) * min(1, dist / 260)
+        let ex = (dx / dist * flankLength).rounded()
+        let ey = (dy / dist * flankLength).rounded()
+
         let texture = brickTexture(color: shaded(color, depthDim),
                                    width: max(width, 8), height: max(height, 8),
-                                   radius: radius, tone: tone)
+                                   radius: radius, tone: tone,
+                                   extrusionX: ex, extrusionY: ey)
         let pad = Brick3D.texturePadding
         let sprite = SKSpriteNode(texture: texture,
                                   size: CGSize(width: width + pad * 2, height: height + pad * 2))
