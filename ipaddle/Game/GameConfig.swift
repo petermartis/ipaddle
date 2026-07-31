@@ -1,6 +1,11 @@
 import Foundation
 import CoreGraphics
 
+enum GameMode {
+    case classic2D
+    case tunnel3D
+}
+
 enum GameConfig {
     /// Logical scene size; aspectFit letterboxes on non-4:3 iPads.
     static let sceneSize = CGSize(width: 1024, height: 768)

@@ -8,6 +8,11 @@
 2. Select the **ipaddle** scheme and an iPad simulator (e.g. *iPad Pro 11-inch*), then **Run** (⌘R).
 3. To run on a physical iPad: select your device, and in *Signing & Capabilities* pick your Apple ID team (automatic signing). Xcode will handle provisioning.
 
+## Game modes
+
+- **2D (classic):** the original brick breaker — paddle along the bottom, ball bouncing off left/right/top walls.
+- **3D (tunnel):** Blockout-style perspective mode. The playfield is a tunnel receding into the screen; the paddle is a translucent pane you drag in **both X and Y** across the whole screen, and the ball flies into the depth, bouncing off all four side walls and the rear wall. Brick walls sit deep in the tunnel — later levels stack multiple layers in Z. A white cross-section ring travels with the ball to signal its depth; line up the paddle before the ball comes back!
+
 ## How to play
 
 - **Drag** anywhere to move the paddle.
@@ -41,14 +46,16 @@
 ├── ipaddle.xcodeproj/          # hand-crafted Xcode project
 └── ipaddle/
     ├── App/iPaddleApp.swift    # SwiftUI entry point hosting SpriteView
-    ├── Scenes/                  # MenuScene, GameScene, GameOverScene
-    ├── Game/                    # Brick, Paddle, Ball, PowerUp, Levels, config
+    ├── Scenes/                  # MenuScene, GameScene (2D), GameScene3D, GameOverScene
+    ├── Game/                    # 2D: Brick, Paddle, Ball, PowerUp, Levels, config
+    ├── Game3D/                  # 3D: math/projection, Brick3D, Levels3D
     ├── Support/                 # sound/haptics player, high-score store
     └── Resources/               # asset catalog (icon) + generated WAV sfx
 ```
 
 ## Engineering notes
 
+- 3D mode is manual perspective projection (`screen = center + world·f/(f+z)`) on SpriteKit — no SceneKit; physics is a hand-rolled sphere-vs-box simulation in tunnel space.
 - Logical playfield is 1024×768 with `aspectFit` scaling — letterboxes cleanly on 10.9"/11"/12.9" iPads.
 - Physics: zero gravity, restitution-1 bodies; ball speed is re-normalized every frame and a minimum vertical velocity fraction prevents endless horizontal bounces.
 - Ball speed scales up per level (470 → 760 pt/s cap).

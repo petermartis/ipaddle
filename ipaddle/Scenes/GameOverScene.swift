@@ -3,11 +3,13 @@ import SpriteKit
 final class GameOverScene: SKScene {
     private let score: Int
     private let didWin: Bool
+    private let mode: GameMode
     private let isNewHighScore: Bool
 
-    init(score: Int, didWin: Bool) {
+    init(score: Int, didWin: Bool, mode: GameMode) {
         self.score = score
         self.didWin = didWin
+        self.mode = mode
         self.isNewHighScore = HighScoreStore.submit(score)
         super.init(size: GameConfig.sceneSize)
         scaleMode = .aspectFit
@@ -76,7 +78,13 @@ final class GameOverScene: SKScene {
         if nodes(at: location).contains(where: { $0.name == "menuButton" }) {
             view?.presentScene(MenuScene.make(), transition: .fade(withDuration: 0.4))
         } else {
-            let game = GameScene(levelIndex: 0, score: 0, lives: GameConfig.startLives)
+            let game: SKScene
+            switch mode {
+            case .classic2D:
+                game = GameScene(levelIndex: 0, score: 0, lives: GameConfig.startLives)
+            case .tunnel3D:
+                game = GameScene3D(levelIndex: 0, score: 0, lives: GameConfig.startLives)
+            }
             view?.presentScene(game, transition: .doorway(withDuration: 0.6))
         }
     }

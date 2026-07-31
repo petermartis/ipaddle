@@ -48,20 +48,44 @@ final class MenuScene: SKScene {
         high.position = CGPoint(x: size.width / 2, y: size.height * 0.38)
         addChild(high)
 
-        let start = SKLabelNode(fontNamed: "AvenirNext-Bold")
-        start.text = "TAP TO START"
-        start.fontSize = 32
-        start.fontColor = .white
-        start.position = CGPoint(x: size.width / 2, y: size.height * 0.24)
-        start.run(SKAction.repeatForever(SKAction.sequence([
-            SKAction.fadeAlpha(to: 0.3, duration: 0.7),
+        addModeButton(text: "PLAY 2D", name: "play2d",
+                      center: CGPoint(x: size.width / 2 - 150, y: size.height * 0.24))
+        addModeButton(text: "PLAY 3D", name: "play3d",
+                      center: CGPoint(x: size.width / 2 + 150, y: size.height * 0.24))
+    }
+
+    private func addModeButton(text: String, name: String, center: CGPoint) {
+        let button = SKShapeNode(rectOf: CGSize(width: 240, height: 72), cornerRadius: 14)
+        button.name = name
+        button.position = center
+        button.fillColor = SKColor.white.withAlphaComponent(0.08)
+        button.strokeColor = SKColor.white.withAlphaComponent(0.8)
+        button.lineWidth = 2
+        addChild(button)
+
+        let label = SKLabelNode(fontNamed: "AvenirNext-Bold")
+        label.name = name
+        label.text = text
+        label.fontSize = 30
+        label.fontColor = .white
+        label.verticalAlignmentMode = .center
+        button.addChild(label)
+
+        button.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.55, duration: 0.7),
             SKAction.fadeAlpha(to: 1.0, duration: 0.7),
         ])))
-        addChild(start)
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let game = GameScene(levelIndex: 0, score: 0, lives: GameConfig.startLives)
-        view?.presentScene(game, transition: .doorway(withDuration: 0.6))
+        guard let location = touches.first?.location(in: self) else { return }
+        let tapped = nodes(at: location).compactMap(\.name)
+        if tapped.contains("play3d") {
+            let game = GameScene3D(levelIndex: 0, score: 0, lives: GameConfig.startLives)
+            view?.presentScene(game, transition: .doorway(withDuration: 0.6))
+        } else if tapped.contains("play2d") {
+            let game = GameScene(levelIndex: 0, score: 0, lives: GameConfig.startLives)
+            view?.presentScene(game, transition: .doorway(withDuration: 0.6))
+        }
     }
 }

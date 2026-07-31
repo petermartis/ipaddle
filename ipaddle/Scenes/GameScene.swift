@@ -576,7 +576,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
     private func gameOver(didWin: Bool) {
         isTransitioning = true
-        let scene = GameOverScene(score: score, didWin: didWin)
+        let scene = GameOverScene(score: score, didWin: didWin, mode: .classic2D)
         view?.presentScene(scene, transition: .fade(withDuration: 0.6))
     }
 }
