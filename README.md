@@ -11,7 +11,7 @@
 ## Game modes
 
 - **2D (classic):** the original brick breaker — paddle along the bottom, ball bouncing off left/right/top walls.
-- **3D (tunnel):** Blockout-style perspective mode. The playfield is a tunnel receding into the screen; the paddle is a translucent pane you drag in **both X and Y** across the whole screen, and the ball flies into the depth, bouncing off all four side walls and the rear wall. Brick walls sit deep in the tunnel — later levels stack multiple layers in Z. A white cross-section ring travels with the ball to signal its depth; line up the paddle before the ball comes back!
+- **3D (tunnel):** Blockout-style perspective mode. The playfield is a tunnel receding into the screen; the paddle is a translucent pane you drag in **both X and Y** across the whole screen, and the ball flies into the depth, bouncing off all four side walls and the rear wall. Brick walls sit deep in the tunnel — later levels stack multiple layers in Z. The ball casts live shadows on all four tunnel walls, and an aim shadow fades in on the paddle plane as the ball approaches. **Pinch** to slide the paddle deeper into the tunnel and back — deeper means smaller on screen but faster to steer. Multi-hit bricks crack progressively instead of changing color.
 
 ## How to play
 

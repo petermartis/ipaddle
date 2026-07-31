@@ -22,12 +22,16 @@ final class GameScene3D: SKScene {
 
     private var ballNode: SKSpriteNode?
     private var ballHighlight: SKShapeNode?
-    private var ballShadow: SKShapeNode?
+    /// Shadows cast on floor, ceiling, left and right walls (in that order).
+    private var wallShadows: [SKShapeNode] = []
+    private var aimShadow: SKShapeNode?
     private var paddleNode: SKNode?
     private var paddleFront: SKShapeNode?
     private var paddleBack: SKShapeNode?
     private var paddleRails: SKShapeNode?
-    private var depthRing: SKShapeNode?
+    private var paddleZ: CGFloat = 0
+    private var pinchStartZ: CGFloat = 0
+    private var pinchRecognizer: UIPinchGestureRecognizer?
     private var scoreLabel: SKLabelNode?
     private var livesLabel: SKLabelNode?
     private var hintLabel: SKLabelNode?
@@ -64,9 +68,45 @@ final class GameScene3D: SKScene {
         drawTunnel()
         buildBricks()
         setupPaddle()
-        setupDepthRing()
+        setupBallShadows()
         setupHUD()
         spawnServingBall()
+
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        view.addGestureRecognizer(pinch)
+        pinchRecognizer = pinch
+    }
+
+    override func willMove(from view: SKView) {
+        if let pinch = pinchRecognizer {
+            view.removeGestureRecognizer(pinch)
+            pinchRecognizer = nil
+        }
+    }
+
+    @objc private func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
+        guard !isGamePaused, !isTransitioning else { return }
+        switch recognizer.state {
+        case .began:
+            pinchStartZ = paddleZ
+            controlTouch = nil // two fingers down: stop treating either as a drag
+        case .changed:
+            // pinch in pushes the paddle into the tunnel, pinch out pulls it back
+            let candidate = pinchStartZ - (recognizer.scale - 1) * 550
+            paddleZ = min(max(candidate, 0), Config3D.maxPaddleZ)
+            syncPaddleNode()
+            if !ballInPlay {
+                ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: servingBallZ)
+                syncBallNode()
+            }
+        default:
+            break
+        }
+    }
+
+    /// Resting z of a served ball, just in front of the paddle slab.
+    private var servingBallZ: CGFloat {
+        paddleZ + Config3D.paddleDepth + Config3D.ballRadius + 2
     }
 
     private func wallQuad(_ points: [CGPoint], fill: SKColor, zPosition: CGFloat) {
@@ -219,21 +259,30 @@ final class GameScene3D: SKScene {
         CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
     }
 
-    private func setupDepthRing() {
-        let ring = SKShapeNode()
-        ring.strokeColor = SKColor.white.withAlphaComponent(0.30)
-        ring.lineWidth = 1
-        addChild(ring)
-        depthRing = ring
-
-        // soft ellipse the ball casts on the tunnel floor
+    private func setupBallShadows() {
+        // one soft shadow per wall: floor, ceiling, left, right — as if lit
+        // from every wall, so each shadow tells you the distance to that wall
         let r = Config3D.ballRadius
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: r * 2.4, height: r * 0.9))
-        shadow.fillColor = SKColor.black.withAlphaComponent(0.55)
-        shadow.strokeColor = .clear
-        shadow.isHidden = true
-        addChild(shadow)
-        ballShadow = shadow
+        let horizontal = CGSize(width: r * 2.4, height: r * 0.9) // floor/ceiling
+        let vertical = CGSize(width: r * 0.9, height: r * 2.4)   // left/right walls
+        wallShadows = [horizontal, horizontal, vertical, vertical].map { size in
+            let shadow = SKShapeNode(ellipseOf: size)
+            shadow.fillColor = SKColor.black.withAlphaComponent(0.55)
+            shadow.strokeColor = .clear
+            shadow.isHidden = true
+            addChild(shadow)
+            return shadow
+        }
+
+        // shadow that fades in on the paddle plane as the ball approaches —
+        // line this up with the paddle and the catch is yours
+        let aim = SKShapeNode(circleOfRadius: r * 1.15)
+        aim.fillColor = SKColor.black.withAlphaComponent(0.6)
+        aim.strokeColor = SKColor.white.withAlphaComponent(0.25)
+        aim.lineWidth = 1
+        aim.isHidden = true
+        addChild(aim)
+        aimShadow = aim
     }
 
     /// Pre-rendered radial-gradient sphere: white specular core offset to the
@@ -330,7 +379,7 @@ final class GameScene3D: SKScene {
         addChild(ball)
         ballNode = ball
         ballInPlay = false
-        ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: Config3D.paddleDepth + r + 2)
+        ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: servingBallZ)
         ballVel = .zero
         syncBallNode()
 
@@ -401,17 +450,19 @@ final class GameScene3D: SKScene {
     }
 
     private func movePaddle(toSceneLocation location: CGPoint) {
-        // front plane projects 1:1, so scene coords map directly to world x/y
-        let worldX = location.x - size.width / 2
-        let worldY = location.y - size.height / 2 - Tunnel.centerYOffset
+        // inverse-project the touch through the paddle's current depth: the
+        // deeper the paddle, the more world distance one finger-point covers,
+        // so a deep paddle is smaller on screen but faster to steer
+        let s = Tunnel.scale(at: paddleZ)
+        let worldX = (location.x - size.width / 2) / s
+        let worldY = (location.y - size.height / 2 - Tunnel.centerYOffset) / s
         let maxX = Tunnel.halfW - Config3D.paddleSize.width / 2
         let maxY = Tunnel.halfH - Config3D.paddleSize.height / 2
         paddleXY = CGPoint(x: min(max(worldX, -maxX), maxX),
                            y: min(max(worldY, -maxY), maxY))
         syncPaddleNode()
         if !ballInPlay {
-            ballPos = Vec3(x: paddleXY.x, y: paddleXY.y,
-                           z: Config3D.paddleDepth + Config3D.ballRadius + 2)
+            ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: servingBallZ)
             syncBallNode()
         }
     }
@@ -419,25 +470,29 @@ final class GameScene3D: SKScene {
     private func syncPaddleNode() {
         let hw = Config3D.paddleSize.width / 2
         let hh = Config3D.paddleSize.height / 2
-        let zBack = Config3D.paddleDepth
+        let zFront = paddleZ
+        let zBack = paddleZ + Config3D.paddleDepth
         func pt(_ dx: CGFloat, _ dy: CGFloat, _ z: CGFloat) -> CGPoint {
             Tunnel.project(Vec3(x: paddleXY.x + dx, y: paddleXY.y + dy, z: z), in: size)
         }
-        let f = [pt(-hw, -hh, 0), pt(hw, -hh, 0), pt(hw, hh, 0), pt(-hw, hh, 0)]
+        let f = [pt(-hw, -hh, zFront), pt(hw, -hh, zFront), pt(hw, hh, zFront), pt(-hw, hh, zFront)]
         let b = [pt(-hw, -hh, zBack), pt(hw, -hh, zBack), pt(hw, hh, zBack), pt(-hw, hh, zBack)]
-        paddleFront?.path = Draw.roundedPolygon(f, radius: 16)
-        paddleBack?.path = Draw.roundedPolygon(b, radius: 16 * Tunnel.scale(at: zBack))
+        paddleFront?.path = Draw.roundedPolygon(f, radius: 22 * Tunnel.scale(at: zFront))
+        paddleBack?.path = Draw.roundedPolygon(b, radius: 22 * Tunnel.scale(at: zBack))
 
         // rails pull in slightly toward each pane's center so their endpoints
         // land inside the rounded corners instead of poking past them
-        let fc = Tunnel.project(Vec3(x: paddleXY.x, y: paddleXY.y, z: 0), in: size)
+        let fc = Tunnel.project(Vec3(x: paddleXY.x, y: paddleXY.y, z: zFront), in: size)
         let bc = Tunnel.project(Vec3(x: paddleXY.x, y: paddleXY.y, z: zBack), in: size)
         let rails = CGMutablePath()
         for i in 0..<4 {
-            rails.move(to: GameScene3D.lerp(f[i], fc, 0.08))
-            rails.addLine(to: GameScene3D.lerp(b[i], bc, 0.08))
+            rails.move(to: GameScene3D.lerp(f[i], fc, 0.10))
+            rails.addLine(to: GameScene3D.lerp(b[i], bc, 0.10))
         }
         paddleRails?.path = rails
+
+        // stay correctly sorted against the ball and walls at this depth
+        paddleNode?.zPosition = 2000 - paddleZ + 8
     }
 
     // MARK: - Pause
@@ -507,7 +562,6 @@ final class GameScene3D: SKScene {
             stepBall(dt: dt)
         }
         syncBallNode()
-        syncDepthRing()
     }
 
     private func stepBall(dt: CGFloat) {
@@ -541,8 +595,9 @@ final class GameScene3D: SKScene {
             SoundPlayer.play(.wallHit, on: self)
         }
 
-        // paddle slab: the ball bounces off its tunnel-facing pane
-        let paddlePlane = Config3D.paddleDepth
+        // paddle slab: the ball bounces off its tunnel-facing pane, wherever
+        // the pinch gesture has parked it in z
+        let paddlePlane = paddleZ + Config3D.paddleDepth
         if ballVel.z < 0, ballPos.z - r <= paddlePlane, ballPos.z - r > paddlePlane - 40 {
             let halfW = Config3D.paddleSize.width / 2
             let halfH = Config3D.paddleSize.height / 2
@@ -666,7 +721,8 @@ final class GameScene3D: SKScene {
 
     private func syncBallNode() {
         guard let node = ballNode else {
-            ballShadow?.isHidden = true
+            wallShadows.forEach { $0.isHidden = true }
+            aimShadow?.isHidden = true
             return
         }
         let r = Config3D.ballRadius
@@ -689,35 +745,56 @@ final class GameScene3D: SKScene {
             highlight.alpha = 0.35 + 0.55 * depthScale
         }
 
-        // cast shadow directly below the ball on the tunnel floor
-        if let shadow = ballShadow {
+        syncWallShadows(depthScale: depthScale)
+        syncAimShadow()
+    }
+
+    /// One cast shadow per wall; each grows softer with distance from its
+    /// wall and tighter/darker as the ball closes in — a live 3D crosshair.
+    private func syncWallShadows(depthScale: CGFloat) {
+        guard wallShadows.count == 4 else { return }
+        let anchors: [Vec3] = [
+            Vec3(x: ballPos.x, y: -Tunnel.halfH, z: ballPos.z), // floor
+            Vec3(x: ballPos.x, y: Tunnel.halfH, z: ballPos.z),  // ceiling
+            Vec3(x: -Tunnel.halfW, y: ballPos.y, z: ballPos.z), // left wall
+            Vec3(x: Tunnel.halfW, y: ballPos.y, z: ballPos.z),  // right wall
+        ]
+        let distances: [CGFloat] = [
+            ballPos.y + Tunnel.halfH,
+            Tunnel.halfH - ballPos.y,
+            ballPos.x + Tunnel.halfW,
+            Tunnel.halfW - ballPos.x,
+        ]
+        let spans: [CGFloat] = [Tunnel.height, Tunnel.height, Tunnel.width, Tunnel.width]
+        for i in 0..<4 {
+            let shadow = wallShadows[i]
             shadow.isHidden = false
-            let heightAboveFloor = ballPos.y + Tunnel.halfH
-            shadow.position = Tunnel.project(
-                Vec3(x: ballPos.x, y: -Tunnel.halfH, z: ballPos.z), in: size)
-            // higher ball → larger, fainter shadow
-            let spread = 1 + heightAboveFloor / 900
+            shadow.position = Tunnel.project(anchors[i], in: size)
+            let spread = 1 + distances[i] / 900
             shadow.setScale(depthScale * spread)
-            shadow.alpha = max(0.10, 0.55 - heightAboveFloor / Tunnel.height * 0.45)
+            shadow.alpha = max(0.08, 0.50 - distances[i] / spans[i] * 0.42)
             shadow.zPosition = 2000 - ballPos.z - 25
         }
     }
 
-    private func syncDepthRing() {
-        guard let ring = depthRing else { return }
-        guard ballInPlay, ballPos.z > 0 else {
-            ring.path = nil
+    /// Fades in on the paddle's bounce plane while the ball approaches.
+    private func syncAimShadow() {
+        guard let aim = aimShadow else { return }
+        let plane = paddleZ + Config3D.paddleDepth
+        guard ballInPlay, ballVel.z < 0, ballPos.z > plane else {
+            aim.isHidden = true
             return
         }
-        let pts = Tunnel.crossSection(at: ballPos.z, in: size)
-        let path = CGMutablePath()
-        path.addLines(between: pts)
-        path.closeSubpath()
-        ring.path = path
-        ring.zPosition = 2000 - ballPos.z + 2
-        // brighter as the ball approaches the player — that's when it matters
-        ring.strokeColor = SKColor.white.withAlphaComponent(
-            0.12 + 0.30 * Tunnel.scale(at: ballPos.z))
+        let closeness = 1 - (ballPos.z - plane) / 700
+        guard closeness > 0 else {
+            aim.isHidden = true
+            return
+        }
+        aim.isHidden = false
+        aim.position = Tunnel.project(Vec3(x: ballPos.x, y: ballPos.y, z: plane), in: size)
+        aim.setScale(Tunnel.scale(at: plane))
+        aim.alpha = 0.65 * closeness
+        aim.zPosition = 2000 - plane + 9
     }
 
     // MARK: - Losing / winning

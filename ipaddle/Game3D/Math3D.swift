@@ -96,8 +96,10 @@ enum Draw {
 enum Config3D {
     static let paddleSize = CGSize(width: 180, height: 130) // world units at z = 0
     static let paddleDepth: CGFloat = 34                    // z thickness of the paddle slab
+    static let maxPaddleZ: CGFloat = 480                    // how deep pinch can push the paddle
     static let ballRadius: CGFloat = 16
-    static let baseBallSpeed: CGFloat = 640
+    // level 2's old speed felt right as the starting pace, so it became the base
+    static let baseBallSpeed: CGFloat = 685
     static let speedPerLevel: CGFloat = 45
     static let maxBallSpeed: CGFloat = 980
     /// Minimum |vz| fraction so the ball never ping-pongs sideways forever.
