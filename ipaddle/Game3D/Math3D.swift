@@ -27,10 +27,12 @@ struct Vec3 {
 /// paddle plane (nearest the player) increasing into the screen. At z = 0 one
 /// world unit equals one scene point, so the front cross-section maps 1:1.
 enum Tunnel {
-    static let width: CGFloat = 640    // x ∈ [-320, 320]
-    static let height: CGFloat = 480   // y ∈ [-240, 240]
+    static let width: CGFloat = 1000   // x ∈ [-500, 500] — nearly full screen
+    static let height: CGFloat = 660   // y ∈ [-330, 330]
     static let depth: CGFloat = 1200   // z ∈ [0, 1200], rear wall at 1200
     static let focal: CGFloat = 640
+    /// Tunnel axis sits slightly below scene center to leave room for the HUD.
+    static let centerYOffset: CGFloat = -24
 
     static var halfW: CGFloat { width / 2 }
     static var halfH: CGFloat { height / 2 }
@@ -42,7 +44,7 @@ enum Tunnel {
     static func project(_ p: Vec3, in sceneSize: CGSize) -> CGPoint {
         let s = scale(at: p.z)
         return CGPoint(x: sceneSize.width / 2 + p.x * s,
-                       y: sceneSize.height / 2 + p.y * s)
+                       y: sceneSize.height / 2 + centerYOffset + p.y * s)
     }
 
     /// Projected corners of the tunnel cross-section rectangle at depth z.
@@ -57,8 +59,9 @@ enum Tunnel {
 }
 
 enum Config3D {
-    static let paddleSize = CGSize(width: 170, height: 120) // world units at z = 0
-    static let ballRadius: CGFloat = 12
+    static let paddleSize = CGSize(width: 180, height: 130) // world units at z = 0
+    static let paddleDepth: CGFloat = 34                    // z thickness of the paddle slab
+    static let ballRadius: CGFloat = 13
     static let baseBallSpeed: CGFloat = 640
     static let speedPerLevel: CGFloat = 45
     static let maxBallSpeed: CGFloat = 980
@@ -67,8 +70,8 @@ enum Config3D {
 
     static let brickColumns = 8
     static let brickRows = 6
-    static let brickThickness: CGFloat = 40  // z extent
-    static let layerSpacing: CGFloat = 64    // front-to-front distance between z layers
+    static let brickThickness: CGFloat = 58  // z extent
+    static let layerSpacing: CGFloat = 86    // front-to-front distance between z layers
     static let rearGap: CGFloat = 60         // space between rearmost layer and rear wall
 
     /// Ball is lost once it flies this far past the paddle plane.

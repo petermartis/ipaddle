@@ -82,37 +82,57 @@ final class Brick3D {
         return shape
     }
 
+    private static func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
+        CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+    }
+
     private static func buildNode(boxMin: Vec3, boxMax: Vec3, color: SKColor, sceneSize: CGSize) -> SKNode {
         let node = SKNode()
         func corner(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> CGPoint {
             Tunnel.project(Vec3(x: x, y: y, z: z), in: sceneSize)
         }
-        // front face corners (z = boxMin.z), counter-clockwise from bottom-left
+        // front face corners (z = boxMin.z): 0 bottom-left, 1 bottom-right, 2 top-right, 3 top-left
         let f = [corner(boxMin.x, boxMin.y, boxMin.z), corner(boxMax.x, boxMin.y, boxMin.z),
                  corner(boxMax.x, boxMax.y, boxMin.z), corner(boxMin.x, boxMax.y, boxMin.z)]
         // back face corners (z = boxMax.z)
         let b = [corner(boxMin.x, boxMin.y, boxMax.z), corner(boxMax.x, boxMin.y, boxMax.z),
                  corner(boxMax.x, boxMax.y, boxMax.z), corner(boxMin.x, boxMax.y, boxMax.z)]
 
-        let edgeColor = SKColor.white.withAlphaComponent(0.22)
+        // darker separating edges make each box pop against its neighbours
+        let edgeColor = SKColor.black.withAlphaComponent(0.55)
+        // everything far away is dimmer — applied to every face of this brick
+        let depthDim = 0.42 + 0.58 * Tunnel.scale(at: boxMin.z)
 
-        // sides facing the camera (toward the tunnel axis), drawn before the front face
+        // faint back-face outline: the receding silhouette sells the volume
+        node.addChild(quad(b, fill: shaded(color, 0.30 * depthDim),
+                           stroke: SKColor.black.withAlphaComponent(0.4)))
+
+        // sides facing the camera (toward the tunnel axis), lit as if from above:
+        // top faces bright, bottom faces dark, left/right in between
         let cx = (boxMin.x + boxMax.x) / 2
         let cy = (boxMin.y + boxMax.y) / 2
         if cx > 1 { // brick is right of center: its left side is visible
-            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.55), stroke: edgeColor))
+            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.60 * depthDim), stroke: edgeColor))
         } else if cx < -1 { // right side visible
-            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.55), stroke: edgeColor))
+            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.60 * depthDim), stroke: edgeColor))
         }
-        if cy > 1 { // brick above center: bottom side visible
-            node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.42), stroke: edgeColor))
-        } else if cy < -1 { // top side visible
-            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 0.72), stroke: edgeColor))
+        if cy > 1 { // brick above center: bottom side visible (in shadow)
+            node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.34 * depthDim), stroke: edgeColor))
+        } else if cy < -1 { // top side visible (catches the light)
+            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 1.05 * depthDim), stroke: edgeColor))
         }
 
-        // front face on top, dimmed slightly with depth so far layers read as farther
-        let depthDim = 0.55 + 0.45 * Tunnel.scale(at: boxMin.z)
-        node.addChild(quad(f, fill: shaded(color, depthDim), stroke: SKColor.white.withAlphaComponent(0.3)))
+        // front face on top
+        let front = quad(f, fill: shaded(color, depthDim), stroke: edgeColor)
+        front.lineWidth = 1.5
+        node.addChild(front)
+
+        // specular strip along the top of the front face
+        let highlight = quad([f[3], f[2], lerp(f[2], f[1], 0.2), lerp(f[3], f[0], 0.2)],
+                             fill: SKColor.white.withAlphaComponent(0.20 * depthDim),
+                             stroke: .clear)
+        highlight.lineWidth = 0
+        node.addChild(highlight)
         return node
     }
 }

@@ -20,7 +20,11 @@ final class GameScene3D: SKScene {
     private let gameNode = SKNode()
 
     private var ballNode: SKShapeNode?
-    private var paddleNode: SKShapeNode?
+    private var ballHighlight: SKShapeNode?
+    private var paddleNode: SKNode?
+    private var paddleFront: SKShapeNode?
+    private var paddleBack: SKShapeNode?
+    private var paddleRails: SKShapeNode?
     private var depthRing: SKShapeNode?
     private var scoreLabel: SKLabelNode?
     private var livesLabel: SKLabelNode?
@@ -86,8 +90,8 @@ final class GameScene3D: SKScene {
             path.addLines(between: pts)
             path.closeSubpath()
             let ring = SKShapeNode(path: path)
-            ring.strokeColor = lineColor.withAlphaComponent(z == 0 ? 0.5 : 0.13)
-            ring.lineWidth = z == 0 ? 2 : 1
+            ring.strokeColor = lineColor.withAlphaComponent(z == 0 ? 0.65 : 0.13)
+            ring.lineWidth = z == 0 ? 2.5 : 1
             ring.zPosition = 2000 - z - 10
             addChild(ring)
             z += 200
@@ -136,15 +140,46 @@ final class GameScene3D: SKScene {
     }
 
     private func setupPaddle() {
-        let pane = SKShapeNode(rectOf: Config3D.paddleSize, cornerRadius: 10)
-        pane.fillColor = SKColor(red: 0.82, green: 0.84, blue: 0.90, alpha: 0.22)
-        pane.strokeColor = SKColor(red: 0.95, green: 0.96, blue: 1.0, alpha: 0.9)
-        pane.lineWidth = 2.5
-        pane.zPosition = 2100 // in front of everything in the tunnel
-        addChild(pane)
-        paddleNode = pane
+        // The paddle is a translucent 3D slab: a back pane deeper in the
+        // tunnel, a front pane at z = 0, and rails joining their corners.
+        // The parallax between the two panes as it moves sells the depth.
+        let container = SKNode()
+        container.zPosition = 2100 // in front of everything in the tunnel
+
+        let back = SKShapeNode()
+        back.fillColor = SKColor(red: 0.82, green: 0.84, blue: 0.90, alpha: 0.16)
+        back.strokeColor = SKColor(red: 0.95, green: 0.96, blue: 1.0, alpha: 0.95)
+        back.lineWidth = 2
+        back.zPosition = 0
+        container.addChild(back)
+        paddleBack = back
+
+        let rails = SKShapeNode()
+        rails.strokeColor = SKColor(red: 0.95, green: 0.96, blue: 1.0, alpha: 0.55)
+        rails.lineWidth = 1.5
+        rails.zPosition = 1
+        container.addChild(rails)
+        paddleRails = rails
+
+        let front = SKShapeNode()
+        front.fillColor = SKColor(red: 0.82, green: 0.84, blue: 0.90, alpha: 0.10)
+        front.strokeColor = SKColor(red: 0.95, green: 0.96, blue: 1.0, alpha: 0.6)
+        front.lineWidth = 2
+        front.zPosition = 2
+        container.addChild(front)
+        paddleFront = front
+
+        addChild(container)
+        paddleNode = container
         paddleXY = .zero
         syncPaddleNode()
+    }
+
+    private static func closedPath(_ points: [CGPoint]) -> CGPath {
+        let path = CGMutablePath()
+        path.addLines(between: points)
+        path.closeSubpath()
+        return path
     }
 
     private func setupDepthRing() {
@@ -205,13 +240,25 @@ final class GameScene3D: SKScene {
     // MARK: - Serving
 
     private func spawnServingBall() {
-        let ball = SKShapeNode(circleOfRadius: Config3D.ballRadius)
-        ball.fillColor = SKColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1)
-        ball.strokeColor = .clear
+        let r = Config3D.ballRadius
+        let ball = SKShapeNode(circleOfRadius: r)
+        ball.fillColor = SKColor(white: 0.97, alpha: 1)
+        ball.strokeColor = SKColor.black.withAlphaComponent(0.3)
+        ball.lineWidth = 1
+
+        // off-center specular highlight fakes a lit sphere
+        let highlight = SKShapeNode(circleOfRadius: r * 0.42)
+        highlight.position = CGPoint(x: -r * 0.30, y: r * 0.32)
+        highlight.fillColor = .white
+        highlight.strokeColor = .clear
+        highlight.zPosition = 1
+        ball.addChild(highlight)
+        ballHighlight = highlight
+
         addChild(ball)
         ballNode = ball
         ballInPlay = false
-        ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: Config3D.ballRadius + 6)
+        ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: Config3D.paddleDepth + r + 2)
         ballVel = .zero
         syncBallNode()
 
@@ -284,21 +331,36 @@ final class GameScene3D: SKScene {
     private func movePaddle(toSceneLocation location: CGPoint) {
         // front plane projects 1:1, so scene coords map directly to world x/y
         let worldX = location.x - size.width / 2
-        let worldY = location.y - size.height / 2
+        let worldY = location.y - size.height / 2 - Tunnel.centerYOffset
         let maxX = Tunnel.halfW - Config3D.paddleSize.width / 2
         let maxY = Tunnel.halfH - Config3D.paddleSize.height / 2
         paddleXY = CGPoint(x: min(max(worldX, -maxX), maxX),
                            y: min(max(worldY, -maxY), maxY))
         syncPaddleNode()
         if !ballInPlay {
-            ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: Config3D.ballRadius + 6)
+            ballPos = Vec3(x: paddleXY.x, y: paddleXY.y,
+                           z: Config3D.paddleDepth + Config3D.ballRadius + 2)
             syncBallNode()
         }
     }
 
     private func syncPaddleNode() {
-        paddleNode?.position = CGPoint(x: size.width / 2 + paddleXY.x,
-                                       y: size.height / 2 + paddleXY.y)
+        let hw = Config3D.paddleSize.width / 2
+        let hh = Config3D.paddleSize.height / 2
+        let zBack = Config3D.paddleDepth
+        func pt(_ dx: CGFloat, _ dy: CGFloat, _ z: CGFloat) -> CGPoint {
+            Tunnel.project(Vec3(x: paddleXY.x + dx, y: paddleXY.y + dy, z: z), in: size)
+        }
+        let f = [pt(-hw, -hh, 0), pt(hw, -hh, 0), pt(hw, hh, 0), pt(-hw, hh, 0)]
+        let b = [pt(-hw, -hh, zBack), pt(hw, -hh, zBack), pt(hw, hh, zBack), pt(-hw, hh, zBack)]
+        paddleFront?.path = GameScene3D.closedPath(f)
+        paddleBack?.path = GameScene3D.closedPath(b)
+        let rails = CGMutablePath()
+        for i in 0..<4 {
+            rails.move(to: f[i])
+            rails.addLine(to: b[i])
+        }
+        paddleRails?.path = rails
     }
 
     // MARK: - Pause
@@ -402,21 +464,22 @@ final class GameScene3D: SKScene {
             SoundPlayer.play(.wallHit, on: self)
         }
 
-        // paddle plane
-        if ballVel.z < 0, ballPos.z - r <= 0, ballPos.z - r > -40 {
+        // paddle slab: the ball bounces off its tunnel-facing pane
+        let paddlePlane = Config3D.paddleDepth
+        if ballVel.z < 0, ballPos.z - r <= paddlePlane, ballPos.z - r > paddlePlane - 40 {
             let halfW = Config3D.paddleSize.width / 2
             let halfH = Config3D.paddleSize.height / 2
             if abs(ballPos.x - paddleXY.x) <= halfW + r,
                abs(ballPos.y - paddleXY.y) <= halfH + r {
                 let nx = min(max((ballPos.x - paddleXY.x) / halfW, -1), 1)
                 let ny = min(max((ballPos.y - paddleXY.y) / halfH, -1), 1)
-                ballPos.z = r
+                ballPos.z = paddlePlane + r
                 ballVel = Vec3(x: nx * 0.8, y: ny * 0.8, z: 1).normalized() * targetBallSpeed
                 SoundPlayer.play(.paddleHit, on: self)
                 SoundPlayer.tapHaptic()
                 paddleNode?.run(SKAction.sequence([
-                    SKAction.scale(to: 1.08, duration: 0.05),
-                    SKAction.scale(to: 1.0, duration: 0.08),
+                    SKAction.fadeAlpha(to: 0.5, duration: 0.05),
+                    SKAction.fadeAlpha(to: 1.0, duration: 0.10),
                 ]))
             }
         }
@@ -526,9 +589,14 @@ final class GameScene3D: SKScene {
 
     private func syncBallNode() {
         guard let node = ballNode else { return }
+        let depthScale = Tunnel.scale(at: max(ballPos.z, 0))
         node.position = Tunnel.project(ballPos, in: size)
-        node.setScale(Tunnel.scale(at: max(ballPos.z, 0)))
+        node.setScale(depthScale)
         node.zPosition = 2000 - ballPos.z + 5
+        // darker when deep in the tunnel, bright when near the player
+        let brightness = 0.45 + 0.55 * depthScale
+        node.fillColor = SKColor(white: 0.97 * brightness, alpha: 1)
+        ballHighlight?.alpha = brightness
     }
 
     private func syncDepthRing() {
@@ -553,6 +621,7 @@ final class GameScene3D: SKScene {
     private func ballLost() {
         ballNode?.removeFromParent()
         ballNode = nil
+        ballHighlight = nil
         ballVel = .zero
         ballInPlay = false
 
