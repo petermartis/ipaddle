@@ -127,12 +127,20 @@ final class Brick3D {
         front.lineWidth = 1.5
         node.addChild(front)
 
-        // specular strip along the top of the front face
-        let highlight = quad([f[3], f[2], lerp(f[2], f[1], 0.2), lerp(f[3], f[0], 0.2)],
-                             fill: SKColor.white.withAlphaComponent(0.20 * depthDim),
+        // specular strip along the top of the front face…
+        let highlight = quad([f[3], f[2], lerp(f[2], f[1], 0.22), lerp(f[3], f[0], 0.22)],
+                             fill: SKColor.white.withAlphaComponent(0.22 * depthDim),
                              stroke: .clear)
         highlight.lineWidth = 0
         node.addChild(highlight)
+
+        // …and an ambient-occlusion strip along the bottom, so the face reads
+        // as a lit surface rather than flat color
+        let shadowStrip = quad([f[0], f[1], lerp(f[1], f[2], 0.20), lerp(f[0], f[3], 0.20)],
+                               fill: SKColor.black.withAlphaComponent(0.24),
+                               stroke: .clear)
+        shadowStrip.lineWidth = 0
+        node.addChild(shadowStrip)
         return node
     }
 }

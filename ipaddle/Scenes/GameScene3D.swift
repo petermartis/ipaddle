@@ -1,4 +1,5 @@
 import SpriteKit
+import UIKit
 
 /// Blockout-style tunnel mode: the playfield is a 3D box seen head-on, the
 /// paddle is a translucent pane at the front plane moving in X/Y, and the
@@ -19,8 +20,9 @@ final class GameScene3D: SKScene {
     private var bricks: [Brick3D] = []
     private let gameNode = SKNode()
 
-    private var ballNode: SKShapeNode?
+    private var ballNode: SKSpriteNode?
     private var ballHighlight: SKShapeNode?
+    private var ballShadow: SKShapeNode?
     private var paddleNode: SKNode?
     private var paddleFront: SKShapeNode?
     private var paddleBack: SKShapeNode?
@@ -67,20 +69,58 @@ final class GameScene3D: SKScene {
         spawnServingBall()
     }
 
+    private func wallQuad(_ points: [CGPoint], fill: SKColor, zPosition: CGFloat) {
+        let path = CGMutablePath()
+        path.addLines(between: points)
+        path.closeSubpath()
+        let quad = SKShapeNode(path: path)
+        quad.fillColor = fill
+        quad.strokeColor = .clear
+        quad.lineWidth = 0
+        quad.zPosition = zPosition
+        addChild(quad)
+    }
+
     private func drawTunnel() {
         let lineColor = SKColor(red: 0.30, green: 0.85, blue: 1.0, alpha: 1)
 
-        // rear wall fill
+        // rear wall: a distinct deep indigo so the brick walls stand out
+        // against it, darker than anything at the front (light comes from
+        // the player's end of the tunnel)
         let rear = Tunnel.crossSection(at: Tunnel.depth, in: size)
         let rearPath = CGMutablePath()
         rearPath.addLines(between: rear)
         rearPath.closeSubpath()
         let rearWall = SKShapeNode(path: rearPath)
-        rearWall.fillColor = SKColor(red: 0.05, green: 0.08, blue: 0.15, alpha: 1)
+        rearWall.fillColor = SKColor(red: 0.11, green: 0.08, blue: 0.22, alpha: 1)
         rearWall.strokeColor = lineColor.withAlphaComponent(0.35)
         rearWall.lineWidth = 1
         rearWall.zPosition = 2000 - Tunnel.depth - 20
         addChild(rearWall)
+
+        // side walls: slate-blue bands, bright at the front and darkening
+        // into the depth; floor catches the most light, ceiling the least
+        let wallBase = (r: CGFloat(0.20), g: CGFloat(0.26), b: CGFloat(0.38))
+        let bands = 8
+        for i in 0..<bands {
+            let z0 = Tunnel.depth * CGFloat(i) / CGFloat(bands)
+            let z1 = Tunnel.depth * CGFloat(i + 1) / CGFloat(bands)
+            let c0 = Tunnel.crossSection(at: z0, in: size)
+            let c1 = Tunnel.crossSection(at: z1, in: size)
+            // crossSection corner order: 0 bottom-left, 1 bottom-right, 2 top-right, 3 top-left
+            let depthShade = 0.95 - 0.72 * CGFloat(i) / CGFloat(bands - 1)
+            func wallColor(_ faceLight: CGFloat) -> SKColor {
+                SKColor(red: wallBase.r * depthShade * faceLight,
+                        green: wallBase.g * depthShade * faceLight,
+                        blue: wallBase.b * depthShade * faceLight,
+                        alpha: 1)
+            }
+            let z = 2000 - z1 - 30
+            wallQuad([c0[0], c0[1], c1[1], c1[0]], fill: wallColor(1.15), zPosition: z) // floor
+            wallQuad([c0[3], c0[2], c1[2], c1[3]], fill: wallColor(0.62), zPosition: z) // ceiling
+            wallQuad([c0[0], c0[3], c1[3], c1[0]], fill: wallColor(0.88), zPosition: z) // left
+            wallQuad([c0[1], c0[2], c1[2], c1[1]], fill: wallColor(0.88), zPosition: z) // right
+        }
 
         // depth rings, fading toward the rear
         var z: CGFloat = 0
@@ -188,6 +228,43 @@ final class GameScene3D: SKScene {
         ring.lineWidth = 1
         addChild(ring)
         depthRing = ring
+
+        // soft ellipse the ball casts on the tunnel floor
+        let r = Config3D.ballRadius
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: r * 2.4, height: r * 0.9))
+        shadow.fillColor = SKColor.black.withAlphaComponent(0.55)
+        shadow.strokeColor = .clear
+        shadow.isHidden = true
+        addChild(shadow)
+        ballShadow = shadow
+    }
+
+    /// Pre-rendered radial-gradient sphere: white specular core offset to the
+    /// upper left, rolling off through the body color into a dark limb.
+    private static func makeSphereTexture(radius: CGFloat) -> SKTexture {
+        let d = radius * 4 // 2x for retina crispness
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: d, height: d))
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let colors = [
+                UIColor.white.cgColor,
+                UIColor(white: 0.93, alpha: 1).cgColor,
+                UIColor(white: 0.62, alpha: 1).cgColor,
+                UIColor(white: 0.22, alpha: 1).cgColor,
+            ] as CFArray
+            let locations: [CGFloat] = [0, 0.25, 0.72, 1]
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                            colors: colors, locations: locations) else { return }
+            cg.addEllipse(in: CGRect(x: 0, y: 0, width: d, height: d))
+            cg.clip()
+            cg.drawRadialGradient(gradient,
+                                  startCenter: CGPoint(x: d * 0.36, y: d * 0.33),
+                                  startRadius: 0,
+                                  endCenter: CGPoint(x: d * 0.46, y: d * 0.45),
+                                  endRadius: d * 0.68,
+                                  options: [.drawsAfterEndLocation])
+        }
+        return SKTexture(image: image)
     }
 
     private func setupHUD() {
@@ -241,15 +318,13 @@ final class GameScene3D: SKScene {
 
     private func spawnServingBall() {
         let r = Config3D.ballRadius
-        let ball = SKShapeNode(circleOfRadius: r)
-        ball.fillColor = SKColor(white: 0.97, alpha: 1)
-        ball.strokeColor = SKColor.black.withAlphaComponent(0.3)
-        ball.lineWidth = 1
+        let ball = SKSpriteNode(texture: GameScene3D.makeSphereTexture(radius: r),
+                                size: CGSize(width: r * 2, height: r * 2))
 
-        // off-center specular highlight fakes a lit sphere
-        let highlight = SKShapeNode(circleOfRadius: r * 0.42)
-        highlight.position = CGPoint(x: -r * 0.30, y: r * 0.32)
-        highlight.fillColor = .white
+        // small extra specular dot that slides with the ball's position in
+        // the tunnel, so the lighting reads as live rather than painted on
+        let highlight = SKShapeNode(circleOfRadius: r * 0.16)
+        highlight.fillColor = SKColor.white.withAlphaComponent(0.85)
         highlight.strokeColor = .clear
         highlight.zPosition = 1
         ball.addChild(highlight)
@@ -588,15 +663,42 @@ final class GameScene3D: SKScene {
     // MARK: - Node syncing
 
     private func syncBallNode() {
-        guard let node = ballNode else { return }
+        guard let node = ballNode else {
+            ballShadow?.isHidden = true
+            return
+        }
+        let r = Config3D.ballRadius
         let depthScale = Tunnel.scale(at: max(ballPos.z, 0))
         node.position = Tunnel.project(ballPos, in: size)
         node.setScale(depthScale)
         node.zPosition = 2000 - ballPos.z + 5
+
         // darker when deep in the tunnel, bright when near the player
         let brightness = 0.45 + 0.55 * depthScale
-        node.fillColor = SKColor(white: 0.97 * brightness, alpha: 1)
-        ballHighlight?.alpha = brightness
+        node.color = .black
+        node.colorBlendFactor = (1 - brightness) * 0.75
+
+        // the specular dot drifts opposite the ball's offset from the tunnel
+        // axis — as if lit from the front center — making the shading dynamic
+        if let highlight = ballHighlight {
+            highlight.position = CGPoint(
+                x: -r * 0.28 - (ballPos.x / Tunnel.halfW) * r * 0.22,
+                y: r * 0.30 - (ballPos.y / Tunnel.halfH) * r * 0.22)
+            highlight.alpha = 0.35 + 0.55 * depthScale
+        }
+
+        // cast shadow directly below the ball on the tunnel floor
+        if let shadow = ballShadow {
+            shadow.isHidden = false
+            let heightAboveFloor = ballPos.y + Tunnel.halfH
+            shadow.position = Tunnel.project(
+                Vec3(x: ballPos.x, y: -Tunnel.halfH, z: ballPos.z), in: size)
+            // higher ball → larger, fainter shadow
+            let spread = 1 + heightAboveFloor / 900
+            shadow.setScale(depthScale * spread)
+            shadow.alpha = max(0.10, 0.55 - heightAboveFloor / Tunnel.height * 0.45)
+            shadow.zPosition = 2000 - ballPos.z - 25
+        }
     }
 
     private func syncDepthRing() {

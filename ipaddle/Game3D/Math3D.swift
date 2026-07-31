@@ -61,7 +61,7 @@ enum Tunnel {
 enum Config3D {
     static let paddleSize = CGSize(width: 180, height: 130) // world units at z = 0
     static let paddleDepth: CGFloat = 34                    // z thickness of the paddle slab
-    static let ballRadius: CGFloat = 13
+    static let ballRadius: CGFloat = 16
     static let baseBallSpeed: CGFloat = 640
     static let speedPerLevel: CGFloat = 45
     static let maxBallSpeed: CGFloat = 980
