@@ -1,12 +1,12 @@
 import SpriteKit
 import UIKit
 
-/// A 3D brick: an axis-aligned box in tunnel space plus its pre-rendered
-/// projected node. The front face is a single baked texture — rounded rect,
-/// vertical light-to-dark gradient, soft inner highlight and a glowing neon
-/// rim — so the shading is continuous (no layered strips). Side and back
-/// faces are clean rounded polygons behind it. Multi-hit bricks accumulate
-/// procedural cracks instead of changing color.
+/// A 3D brick: an axis-aligned box in tunnel space, rendered as a single
+/// baked sprite with pillow-soft volumetric shading — edge roll-off on all
+/// four sides, a corner specular, a baked drop shadow, and a subtle neon
+/// glow. No assembled face panels: the softness of one continuous surface
+/// is what makes it read as a molded solid.
+/// Multi-hit bricks accumulate procedural cracks instead of changing color.
 final class Brick3D {
     let boxMin: Vec3
     let boxMax: Vec3
@@ -129,14 +129,6 @@ final class Brick3D {
                        blue: min(1, b * factor), alpha: a)
     }
 
-    private static func quad(_ points: [CGPoint], fill: SKColor, cornerRadius: CGFloat) -> SKShapeNode {
-        let shape = SKShapeNode(path: Draw.roundedPolygon(points, radius: cornerRadius))
-        shape.fillColor = fill
-        shape.strokeColor = .clear
-        shape.lineWidth = 0
-        return shape
-    }
-
     private static func faceCorners(boxMin: Vec3, boxMax: Vec3, z: CGFloat,
                                     sceneSize: CGSize) -> [CGPoint] {
         // 0 bottom-left, 1 bottom-right, 2 top-right, 3 top-left
@@ -148,104 +140,91 @@ final class Brick3D {
         ]
     }
 
-    // MARK: - Front-face texture baking
+    // MARK: - Baked brick body
 
     private static var textureCache: [String: SKTexture] = [:]
+    /// Canvas padding around the body for glow and drop shadow.
+    static let texturePadding: CGFloat = 22
 
-    /// One smooth "gel button" texture: rounded rect, vertical gradient,
-    /// soft top highlight, glowing rim. Cached per size/color/tone bucket.
-    private static func frontTexture(color: SKColor, width: CGFloat, height: CGFloat,
+    /// The whole brick as one soft-shaded body:
+    /// drop shadow → body fill → inner-shadow edge roll-off on all four
+    /// sides → top light → corner specular → faint neon rim glow.
+    private static func brickTexture(color: SKColor, width: CGFloat, height: CGFloat,
                                      radius: CGFloat, tone: CGFloat) -> SKTexture {
-        let key = String(format: "%.2f-%.2f-%.0fx%.0f-r%.0f-t%.2f",
-                         colorKey(color).0, colorKey(color).1, width, height, radius, tone)
+        var r: CGFloat = 0, g: CGFloat = 0, b2: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b2, alpha: &a)
+        let key = String(format: "brick-%.2f-%.2f-%.2f-%.0fx%.0f-r%.0f-t%.2f",
+                         r, g, b2, width, height, radius, tone)
         if let cached = textureCache[key] { return cached }
 
         let base = shaded(color, tone)
+        let pad = texturePadding
         let format = UIGraphicsImageRendererFormat()
         format.scale = 2
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format)
-        let image = renderer.image { ctx in
-            let cg = ctx.cgContext
-            let inset: CGFloat = 3 // room for the rim glow to breathe
-            let rect = CGRect(x: inset, y: inset, width: width - 2 * inset, height: height - 2 * inset)
-            let rounded = UIBezierPath(roundedRect: rect,
-                                       cornerRadius: min(radius, min(rect.width, rect.height) / 2))
-            let space = CGColorSpaceCreateDeviceRGB()
-
-            // body: strong top-lit gradient — the contrast is what makes the
-            // face read as a curved 3D surface instead of a flat sticker
-            cg.saveGState()
-            cg.addPath(rounded.cgPath)
-            cg.clip()
-            if let body = CGGradient(colorsSpace: space,
-                                     colors: [shaded(base, 1.38).cgColor,
-                                              shaded(base, 1.02).cgColor,
-                                              shaded(base, 0.48).cgColor] as CFArray,
-                                     locations: [0, 0.42, 1]) {
-                cg.drawLinearGradient(body, start: CGPoint(x: 0, y: rect.minY),
-                                      end: CGPoint(x: 0, y: rect.maxY), options: [])
-            }
-            // soft specular sheen across the top third
-            if let sheen = CGGradient(colorsSpace: space,
-                                      colors: [UIColor.white.withAlphaComponent(0.40).cgColor,
-                                               UIColor.white.withAlphaComponent(0).cgColor] as CFArray,
-                                      locations: [0, 1]) {
-                cg.drawLinearGradient(sheen, start: CGPoint(x: 0, y: rect.minY),
-                                      end: CGPoint(x: 0, y: rect.minY + rect.height * 0.38),
-                                      options: [])
-            }
-            // smooth ambient-occlusion falloff hugging the bottom curve
-            if let occlusion = CGGradient(colorsSpace: space,
-                                          colors: [UIColor.black.withAlphaComponent(0).cgColor,
-                                                   UIColor.black.withAlphaComponent(0.30).cgColor] as CFArray,
-                                          locations: [0, 1]) {
-                cg.drawLinearGradient(occlusion,
-                                      start: CGPoint(x: 0, y: rect.maxY - rect.height * 0.30),
-                                      end: CGPoint(x: 0, y: rect.maxY), options: [])
-            }
-            cg.restoreGState()
-
-            // glowing neon rim hugging the rounded outline
-            let rim = shaded(base, 1.5)
-            cg.setShadow(offset: .zero, blur: 5, color: rim.cgColor)
-            cg.setStrokeColor(rim.withAlphaComponent(0.95).cgColor)
-            cg.setLineWidth(2.5)
-            cg.addPath(rounded.cgPath)
-            cg.strokePath()
-            cg.addPath(rounded.cgPath)
-            cg.strokePath() // second pass strengthens the glow
-        }
-        let texture = SKTexture(image: image)
-        textureCache[key] = texture
-        return texture
-    }
-
-    private static func colorKey(_ color: SKColor) -> (CGFloat, CGFloat) {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        color.getRed(&r, green: &g, blue: &b, alpha: &a)
-        return (r + b * 10, g)
-    }
-
-    /// Soft blurred drop shadow, cached per size bucket.
-    private static func dropShadowTexture(width: CGFloat, height: CGFloat,
-                                          radius: CGFloat) -> SKTexture {
-        let key = String(format: "shadow-%.0fx%.0f-r%.0f", width, height, radius)
-        if let cached = textureCache[key] { return cached }
-        let pad: CGFloat = 24
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
-        let renderer = UIGraphicsImageRenderer(
-            size: CGSize(width: width + pad * 2, height: height + pad * 2), format: format)
+        let canvas = CGSize(width: width + pad * 2, height: height + pad * 2)
+        let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
         let image = renderer.image { ctx in
             let cg = ctx.cgContext
             let rect = CGRect(x: pad, y: pad, width: width, height: height)
-            let rounded = UIBezierPath(roundedRect: rect,
-                                       cornerRadius: min(radius, min(width, height) / 2))
-            cg.setShadow(offset: .zero, blur: 16,
-                         color: UIColor.black.withAlphaComponent(0.9).cgColor)
-            cg.setFillColor(UIColor.black.cgColor)
+            let corner = min(radius, min(width, height) / 2)
+            let rounded = UIBezierPath(roundedRect: rect, cornerRadius: corner)
+            let space = CGColorSpaceCreateDeviceRGB()
+
+            // 1. body fill, casting its own soft drop shadow downward
+            cg.saveGState()
+            cg.setShadow(offset: CGSize(width: 0, height: 7), blur: 12,
+                         color: UIColor.black.withAlphaComponent(0.55).cgColor)
+            cg.setFillColor(base.cgColor)
             cg.addPath(rounded.cgPath)
             cg.fillPath()
+            cg.restoreGState()
+
+            // 2. pillow roll-off: an inner shadow bleeding in from every
+            // edge, following the rounded contour — this is what makes the
+            // surface look curved in all directions
+            cg.saveGState()
+            cg.addPath(rounded.cgPath)
+            cg.clip()
+            cg.setShadow(offset: .zero, blur: min(width, height) * 0.22,
+                         color: UIColor.black.withAlphaComponent(0.65).cgColor)
+            let inverse = CGMutablePath()
+            inverse.addRect(CGRect(x: -60, y: -60, width: canvas.width + 120, height: canvas.height + 120))
+            inverse.addPath(rounded.cgPath)
+            cg.addPath(inverse)
+            cg.setFillColor(UIColor.black.cgColor)
+            cg.fillPath(using: .evenOdd)
+
+            // 3. light from above: gentle brightening of the top half
+            if let light = CGGradient(colorsSpace: space,
+                                      colors: [UIColor.white.withAlphaComponent(0.30).cgColor,
+                                               UIColor.white.withAlphaComponent(0).cgColor,
+                                               UIColor.black.withAlphaComponent(0.18).cgColor] as CFArray,
+                                      locations: [0, 0.5, 1]) {
+                cg.drawLinearGradient(light, start: CGPoint(x: 0, y: rect.minY),
+                                      end: CGPoint(x: 0, y: rect.maxY), options: [])
+            }
+
+            // 4. corner specular glint (as on the reference cube)
+            if let glint = CGGradient(colorsSpace: space,
+                                      colors: [UIColor.white.withAlphaComponent(0.55).cgColor,
+                                               UIColor.white.withAlphaComponent(0).cgColor] as CFArray,
+                                      locations: [0, 1]) {
+                let center = CGPoint(x: rect.minX + rect.width * 0.26,
+                                     y: rect.minY + rect.height * 0.24)
+                cg.drawRadialGradient(glint, startCenter: center, startRadius: 0,
+                                      endCenter: center, endRadius: min(width, height) * 0.55,
+                                      options: [])
+            }
+            cg.restoreGState()
+
+            // 5. faint neon rim so the palette still glows, without a hard
+            // sticker outline
+            cg.setShadow(offset: .zero, blur: 7,
+                         color: shaded(base, 1.5).cgColor)
+            cg.setStrokeColor(shaded(base, 1.45).withAlphaComponent(0.55).cgColor)
+            cg.setLineWidth(1.5)
+            cg.addPath(rounded.cgPath)
+            cg.strokePath()
         }
         let texture = SKTexture(image: image)
         textureCache[key] = texture
@@ -255,14 +234,9 @@ final class Brick3D {
     private static func buildNode(boxMin: Vec3, boxMax: Vec3, color: SKColor, sceneSize: CGSize) -> SKNode {
         let node = SKNode()
         let f = faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMin.z, sceneSize: sceneSize)
-        // the visual extrusion is drawn twice as deep as the physics box, so
-        // off-center bricks show a meaty flank instead of a sliver
-        let visualBackZ = boxMax.z + (boxMax.z - boxMin.z)
-        let b = faceCorners(boxMin: boxMin, boxMax: boxMax, z: visualBackZ, sceneSize: sceneSize)
         let scaleF = Tunnel.scale(at: boxMin.z)
 
-        // hand-made variance without touching the geometry: each brick gets
-        // its own rounding amount and tone
+        // hand-made variance: each brick gets its own rounding and tone
         let wobble = CGFloat.random(in: 0.9...1.25)
         let tone = [0.94, 1.0, 1.06].randomElement()!
         let depthDim = 0.42 + 0.58 * scaleF
@@ -270,53 +244,15 @@ final class Brick3D {
         // front face is an axis-aligned rect (constant z), so measure it
         let width = f[1].x - f[0].x
         let height = f[2].y - f[1].y
-        let frontRadius = min(width, height) * 0.24 * wobble
-        let backWidth = b[1].x - b[0].x
-        let backHeight = b[2].y - b[1].y
-        let backRadius = min(backWidth, backHeight) * 0.24 * wobble
+        let radius = min(width, height) * 0.26 * wobble
 
-        // drop shadow cast onto whatever is behind this brick, thrown down
-        // and away from the tunnel axis — the single strongest "it's a solid
-        // object floating in space" cue
-        let cx = (boxMin.x + boxMax.x) / 2
-        let cy = (boxMin.y + boxMax.y) / 2
-        let shadowSprite = SKSpriteNode(texture: dropShadowTexture(width: width, height: height,
-                                                                   radius: frontRadius))
-        shadowSprite.position = CGPoint(
-            x: (f[0].x + f[1].x) / 2 + (cx / Tunnel.halfW) * 16,
-            y: (f[1].y + f[2].y) / 2 - 14 + (cy / Tunnel.halfH) * 6)
-        shadowSprite.alpha = 0.5
-        shadowSprite.zPosition = -1
-        node.addChild(shadowSprite)
-
-        // back face silhouette
-        node.addChild(quad(b, fill: shaded(color, 0.26 * depthDim), cornerRadius: backRadius))
-
-        // sides facing the camera, lit from above — strokeless so they read
-        // as the brick's own material turning away from the light
-        let sideRadius = max(frontRadius, backRadius)
-        if cx > 1 {
-            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.50 * depthDim),
-                               cornerRadius: sideRadius))
-        } else if cx < -1 {
-            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.50 * depthDim),
-                               cornerRadius: sideRadius))
-        }
-        if cy > 1 {
-            node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.30 * depthDim),
-                               cornerRadius: sideRadius))
-        } else if cy < -1 {
-            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 0.95 * depthDim),
-                               cornerRadius: sideRadius))
-        }
-
-        // baked front face on top
-        let texture = frontTexture(color: shaded(color, depthDim),
+        let texture = brickTexture(color: shaded(color, depthDim),
                                    width: max(width, 8), height: max(height, 8),
-                                   radius: frontRadius, tone: tone)
-        let sprite = SKSpriteNode(texture: texture, size: CGSize(width: width, height: height))
+                                   radius: radius, tone: tone)
+        let pad = Brick3D.texturePadding
+        let sprite = SKSpriteNode(texture: texture,
+                                  size: CGSize(width: width + pad * 2, height: height + pad * 2))
         sprite.position = CGPoint(x: (f[0].x + f[1].x) / 2, y: (f[1].y + f[2].y) / 2)
-        sprite.zPosition = 2
         node.addChild(sprite)
         return node
     }
