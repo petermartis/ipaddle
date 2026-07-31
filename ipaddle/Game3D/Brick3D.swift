@@ -1,8 +1,12 @@
 import SpriteKit
+import UIKit
 
 /// A 3D brick: an axis-aligned box in tunnel space plus its pre-rendered
-/// projected node (front face, back face, and the sides that face the camera).
-/// Multi-hit bricks accumulate procedural cracks instead of changing color.
+/// projected node. The front face is a single baked texture — rounded rect,
+/// vertical light-to-dark gradient, soft inner highlight and a glowing neon
+/// rim — so the shading is continuous (no layered strips). Side and back
+/// faces are clean rounded polygons behind it. Multi-hit bricks accumulate
+/// procedural cracks instead of changing color.
 final class Brick3D {
     let boxMin: Vec3
     let boxMax: Vec3
@@ -88,17 +92,15 @@ final class Brick3D {
         let origin = CGPoint(x: centroid.x + CGFloat.random(in: -jitterScale...jitterScale),
                              y: centroid.y + CGFloat.random(in: -jitterScale...jitterScale))
         let branches = stage == 1 ? 4 : 6
-        let reach: CGFloat = stage == 1 ? 0.55 : 0.95
+        let reach: CGFloat = stage == 1 ? 0.5 : 0.85
 
         let path = CGMutablePath()
         for i in 0..<branches {
-            // spread branch targets around the perimeter
             let edge = (i + Int.random(in: 0...1)) % 4
             let t = CGFloat.random(in: 0.2...0.8)
             let edgeTarget = Brick3D.lerp(f[edge], f[(edge + 1) % 4], t)
             let target = Brick3D.lerp(origin, edgeTarget, reach)
             path.move(to: origin)
-            var previous = origin
             for step in 1...3 {
                 var point = Brick3D.lerp(origin, target, CGFloat(step) / 3)
                 if step < 3 {
@@ -106,9 +108,7 @@ final class Brick3D {
                     point.y += CGFloat.random(in: -jitterScale...jitterScale)
                 }
                 path.addLine(to: point)
-                previous = point
             }
-            _ = previous
         }
 
         let crack = SKShapeNode(path: path)
@@ -129,13 +129,11 @@ final class Brick3D {
                        blue: min(1, b * factor), alpha: a)
     }
 
-    private static func quad(_ points: [CGPoint], fill: SKColor, stroke: SKColor,
-                             cornerRadius: CGFloat = 0) -> SKShapeNode {
+    private static func quad(_ points: [CGPoint], fill: SKColor, cornerRadius: CGFloat) -> SKShapeNode {
         let shape = SKShapeNode(path: Draw.roundedPolygon(points, radius: cornerRadius))
         shape.fillColor = fill
-        shape.strokeColor = stroke
-        shape.lineWidth = 1
-        shape.lineJoin = .round
+        shape.strokeColor = .clear
+        shape.lineWidth = 0
         return shape
     }
 
@@ -150,84 +148,125 @@ final class Brick3D {
         ]
     }
 
+    // MARK: - Front-face texture baking
+
+    private static var textureCache: [String: SKTexture] = [:]
+
+    /// One smooth "gel button" texture: rounded rect, vertical gradient,
+    /// soft top highlight, glowing rim. Cached per size/color/tone bucket.
+    private static func frontTexture(color: SKColor, width: CGFloat, height: CGFloat,
+                                     radius: CGFloat, tone: CGFloat) -> SKTexture {
+        let key = String(format: "%.2f-%.2f-%.0fx%.0f-r%.0f-t%.2f",
+                         colorKey(color).0, colorKey(color).1, width, height, radius, tone)
+        if let cached = textureCache[key] { return cached }
+
+        let base = shaded(color, tone)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format)
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let inset: CGFloat = 3 // room for the rim glow to breathe
+            let rect = CGRect(x: inset, y: inset, width: width - 2 * inset, height: height - 2 * inset)
+            let rounded = UIBezierPath(roundedRect: rect,
+                                       cornerRadius: min(radius, min(rect.width, rect.height) / 2))
+            let space = CGColorSpaceCreateDeviceRGB()
+
+            // body: bright top rolling to a darker bottom (UIKit y-down)
+            cg.saveGState()
+            cg.addPath(rounded.cgPath)
+            cg.clip()
+            if let body = CGGradient(colorsSpace: space,
+                                     colors: [shaded(base, 1.22).cgColor,
+                                              shaded(base, 0.98).cgColor,
+                                              shaded(base, 0.62).cgColor] as CFArray,
+                                     locations: [0, 0.45, 1]) {
+                cg.drawLinearGradient(body, start: CGPoint(x: 0, y: rect.minY),
+                                      end: CGPoint(x: 0, y: rect.maxY), options: [])
+            }
+            // soft specular sheen across the top third
+            if let sheen = CGGradient(colorsSpace: space,
+                                      colors: [UIColor.white.withAlphaComponent(0.35).cgColor,
+                                               UIColor.white.withAlphaComponent(0).cgColor] as CFArray,
+                                      locations: [0, 1]) {
+                cg.drawLinearGradient(sheen, start: CGPoint(x: 0, y: rect.minY),
+                                      end: CGPoint(x: 0, y: rect.minY + rect.height * 0.38),
+                                      options: [])
+            }
+            cg.restoreGState()
+
+            // glowing neon rim hugging the rounded outline
+            let rim = shaded(base, 1.5)
+            cg.setShadow(offset: .zero, blur: 5, color: rim.cgColor)
+            cg.setStrokeColor(rim.withAlphaComponent(0.95).cgColor)
+            cg.setLineWidth(2.5)
+            cg.addPath(rounded.cgPath)
+            cg.strokePath()
+            cg.addPath(rounded.cgPath)
+            cg.strokePath() // second pass strengthens the glow
+        }
+        let texture = SKTexture(image: image)
+        textureCache[key] = texture
+        return texture
+    }
+
+    private static func colorKey(_ color: SKColor) -> (CGFloat, CGFloat) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return (r + b * 10, g)
+    }
+
     private static func buildNode(boxMin: Vec3, boxMax: Vec3, color: SKColor, sceneSize: CGSize) -> SKNode {
         let node = SKNode()
+        let f = faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMin.z, sceneSize: sceneSize)
+        let b = faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMax.z, sceneSize: sceneSize)
         let scaleF = Tunnel.scale(at: boxMin.z)
-        let scaleB = Tunnel.scale(at: boxMax.z)
 
-        // modelling-clay irregularity: every brick gets its own slightly
-        // wobbled corners, rounding amount, and tone, so a wall of bricks
-        // reads as hand-made rather than machine-stamped
-        func jitter(_ points: [CGPoint], amp: CGFloat) -> [CGPoint] {
-            points.map { CGPoint(x: $0.x + CGFloat.random(in: -amp...amp),
-                                 y: $0.y + CGFloat.random(in: -amp...amp)) }
-        }
-        let f = jitter(faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMin.z, sceneSize: sceneSize),
-                       amp: 2.4 * scaleF)
-        let b = jitter(faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMax.z, sceneSize: sceneSize),
-                       amp: 2.4 * scaleB)
-        let wobble = CGFloat.random(in: 0.85...1.35)
-        let tone = CGFloat.random(in: 0.93...1.07)
+        // hand-made variance without touching the geometry: each brick gets
+        // its own rounding amount and tone
+        let wobble = CGFloat.random(in: 0.9...1.25)
+        let tone = [0.94, 1.0, 1.06].randomElement()!
+        let depthDim = 0.42 + 0.58 * scaleF
 
-        // darker separating edges make each box pop against its neighbours
-        let edgeColor = SKColor.black.withAlphaComponent(0.55)
-        // everything far away is dimmer — applied to every face of this brick
-        let depthDim = (0.42 + 0.58 * scaleF) * tone
+        // front face is an axis-aligned rect (constant z), so measure it
+        let width = f[1].x - f[0].x
+        let height = f[2].y - f[1].y
+        let frontRadius = min(width, height) * 0.24 * wobble
+        let backWidth = b[1].x - b[0].x
+        let backHeight = b[2].y - b[1].y
+        let backRadius = min(backWidth, backHeight) * 0.24 * wobble
 
-        // generous rounding on every face so all 12 box edges read as soft;
-        // side faces take the larger of the two radii so far-layer bricks
-        // stay rounded on all four corners, not just the front two
-        let frontRadius = 15 * scaleF * wobble
-        let backRadius = 15 * scaleB * wobble
+        // back face silhouette
+        node.addChild(quad(b, fill: shaded(color, 0.30 * depthDim), cornerRadius: backRadius))
+
+        // sides facing the camera, lit from above — strokeless so they read
+        // as the brick's own material turning away from the light
         let sideRadius = max(frontRadius, backRadius)
-
-        // faint back-face outline: the receding silhouette sells the volume
-        node.addChild(quad(b, fill: shaded(color, 0.30 * depthDim),
-                           stroke: SKColor.black.withAlphaComponent(0.4),
-                           cornerRadius: backRadius))
-
-        // sides facing the camera (toward the tunnel axis), lit as if from above:
-        // top faces bright, bottom faces dark, left/right in between
         let cx = (boxMin.x + boxMax.x) / 2
         let cy = (boxMin.y + boxMax.y) / 2
-        if cx > 1 { // brick is right of center: its left side is visible
-            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.60 * depthDim),
-                               stroke: edgeColor, cornerRadius: sideRadius))
-        } else if cx < -1 { // right side visible
-            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.60 * depthDim),
-                               stroke: edgeColor, cornerRadius: sideRadius))
+        if cx > 1 {
+            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.55 * depthDim),
+                               cornerRadius: sideRadius))
+        } else if cx < -1 {
+            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.55 * depthDim),
+                               cornerRadius: sideRadius))
         }
-        if cy > 1 { // brick above center: bottom side visible (in shadow)
+        if cy > 1 {
             node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.34 * depthDim),
-                               stroke: edgeColor, cornerRadius: sideRadius))
-        } else if cy < -1 { // top side visible (catches the light)
-            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 1.05 * depthDim),
-                               stroke: edgeColor, cornerRadius: sideRadius))
+                               cornerRadius: sideRadius))
+        } else if cy < -1 {
+            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 0.92 * depthDim),
+                               cornerRadius: sideRadius))
         }
 
-        // front face on top: slightly deepened fill with a glowing neon rim —
-        // the glow hugging the rounded corners is what sells the molded look
-        let front = quad(f, fill: shaded(color, depthDim * 0.88),
-                         stroke: shaded(color, 1.45).withAlphaComponent(0.9),
-                         cornerRadius: frontRadius)
-        front.lineWidth = 2
-        front.glowWidth = 5 * Tunnel.scale(at: boxMin.z) * depthDim
-        node.addChild(front)
-
-        // specular strip along the top of the front face…
-        let highlight = quad([f[3], f[2], lerp(f[2], f[1], 0.22), lerp(f[3], f[0], 0.22)],
-                             fill: SKColor.white.withAlphaComponent(0.22 * depthDim),
-                             stroke: .clear, cornerRadius: frontRadius)
-        highlight.lineWidth = 0
-        node.addChild(highlight)
-
-        // …and an ambient-occlusion strip along the bottom, so the face reads
-        // as a lit surface rather than flat color
-        let shadowStrip = quad([f[0], f[1], lerp(f[1], f[2], 0.20), lerp(f[0], f[3], 0.20)],
-                               fill: SKColor.black.withAlphaComponent(0.24),
-                               stroke: .clear, cornerRadius: frontRadius)
-        shadowStrip.lineWidth = 0
-        node.addChild(shadowStrip)
+        // baked front face on top
+        let texture = frontTexture(color: shaded(color, depthDim),
+                                   width: max(width, 8), height: max(height, 8),
+                                   radius: frontRadius, tone: tone)
+        let sprite = SKSpriteNode(texture: texture, size: CGSize(width: width, height: height))
+        sprite.position = CGPoint(x: (f[0].x + f[1].x) / 2, y: (f[1].y + f[2].y) / 2)
+        sprite.zPosition = 2
+        node.addChild(sprite)
         return node
     }
 }
