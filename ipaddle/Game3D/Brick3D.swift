@@ -152,20 +152,34 @@ final class Brick3D {
 
     private static func buildNode(boxMin: Vec3, boxMax: Vec3, color: SKColor, sceneSize: CGSize) -> SKNode {
         let node = SKNode()
-        let f = faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMin.z, sceneSize: sceneSize)
-        let b = faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMax.z, sceneSize: sceneSize)
+        let scaleF = Tunnel.scale(at: boxMin.z)
+        let scaleB = Tunnel.scale(at: boxMax.z)
+
+        // modelling-clay irregularity: every brick gets its own slightly
+        // wobbled corners, rounding amount, and tone, so a wall of bricks
+        // reads as hand-made rather than machine-stamped
+        func jitter(_ points: [CGPoint], amp: CGFloat) -> [CGPoint] {
+            points.map { CGPoint(x: $0.x + CGFloat.random(in: -amp...amp),
+                                 y: $0.y + CGFloat.random(in: -amp...amp)) }
+        }
+        let f = jitter(faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMin.z, sceneSize: sceneSize),
+                       amp: 2.4 * scaleF)
+        let b = jitter(faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMax.z, sceneSize: sceneSize),
+                       amp: 2.4 * scaleB)
+        let wobble = CGFloat.random(in: 0.85...1.35)
+        let tone = CGFloat.random(in: 0.93...1.07)
 
         // darker separating edges make each box pop against its neighbours
         let edgeColor = SKColor.black.withAlphaComponent(0.55)
         // everything far away is dimmer — applied to every face of this brick
-        let depthDim = 0.42 + 0.58 * Tunnel.scale(at: boxMin.z)
+        let depthDim = (0.42 + 0.58 * scaleF) * tone
 
-        // generous rounding on every face so all 12 box edges read as soft:
-        // front/back faces round the x/y edges; the side faces rounding into
-        // the front and back faces softens the z edges as well
-        let frontRadius = 13 * Tunnel.scale(at: boxMin.z)
-        let backRadius = 13 * Tunnel.scale(at: boxMax.z)
-        let sideRadius = (frontRadius + backRadius) / 2
+        // generous rounding on every face so all 12 box edges read as soft;
+        // side faces take the larger of the two radii so far-layer bricks
+        // stay rounded on all four corners, not just the front two
+        let frontRadius = 15 * scaleF * wobble
+        let backRadius = 15 * scaleB * wobble
+        let sideRadius = max(frontRadius, backRadius)
 
         // faint back-face outline: the receding silhouette sells the volume
         node.addChild(quad(b, fill: shaded(color, 0.30 * depthDim),

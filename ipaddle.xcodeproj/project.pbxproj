@@ -40,6 +40,7 @@
 		BB00000000000000000033 /* pinch_3.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000033 /* pinch_3.wav */; };
 		BB00000000000000000034 /* pinch_4.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000034 /* pinch_4.wav */; };
 		BB00000000000000000035 /* pinch_5.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000035 /* pinch_5.wav */; };
+		BB00000000000000000036 /* crack.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000036 /* crack.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -78,6 +79,7 @@
 		AA00000000000000000033 /* pinch_3.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = pinch_3.wav; sourceTree = "<group>"; };
 		AA00000000000000000034 /* pinch_4.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = pinch_4.wav; sourceTree = "<group>"; };
 		AA00000000000000000035 /* pinch_5.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = pinch_5.wav; sourceTree = "<group>"; };
+		AA00000000000000000036 /* crack.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = crack.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -200,6 +202,7 @@
 				AA00000000000000000033 /* pinch_3.wav */,
 				AA00000000000000000034 /* pinch_4.wav */,
 				AA00000000000000000035 /* pinch_5.wav */,
+				AA00000000000000000036 /* crack.wav */,
 			);
 			path = Sounds;
 			sourceTree = "<group>";
@@ -278,6 +281,7 @@
 				BB00000000000000000033 /* pinch_3.wav in Resources */,
 				BB00000000000000000034 /* pinch_4.wav in Resources */,
 				BB00000000000000000035 /* pinch_5.wav in Resources */,
+				BB00000000000000000036 /* crack.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

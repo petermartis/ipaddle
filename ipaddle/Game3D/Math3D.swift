@@ -99,11 +99,10 @@ enum Config3D {
     static let maxPaddleZ: CGFloat = 820                    // how deep pinch can push the paddle
     static let pinchSensitivity: CGFloat = 1100             // z units per pinch-scale unit
     static let pinchZones = 6                               // audible depth steps
-    static let ballRadius: CGFloat = 16
-    // level 2's old speed felt right as the starting pace, so it became the base
-    static let baseBallSpeed: CGFloat = 685
+    static let ballRadius: CGFloat = 48
+    static let baseBallSpeed: CGFloat = 890
     static let speedPerLevel: CGFloat = 45
-    static let maxBallSpeed: CGFloat = 980
+    static let maxBallSpeed: CGFloat = 1275
     /// Minimum |vz| fraction so the ball never ping-pongs sideways forever.
     static let minDepthFraction: CGFloat = 0.32
 

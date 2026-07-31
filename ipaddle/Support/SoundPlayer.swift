@@ -11,6 +11,7 @@ enum Sound: String, CaseIterable {
     case loseLife = "lose_life.wav"
     case levelClear = "level_clear.wav"
     case gameOver = "game_over.wav"
+    case crack = "crack.wav"
     case pinch0 = "pinch_0.wav"
     case pinch1 = "pinch_1.wav"
     case pinch2 = "pinch_2.wav"

@@ -296,8 +296,9 @@ final class GameScene3D: SKScene {
         addChild(container)
         paddleNode = container
 
-        // shadow the paddle casts on whichever wall it is closest to
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: 100, height: 40))
+        // shadow the paddle casts on whichever wall it is closest to;
+        // the path is rebuilt each frame as a perspective-correct footprint
+        let shadow = SKShapeNode()
         shadow.fillColor = SKColor.black.withAlphaComponent(0.7)
         shadow.strokeColor = .clear
         addChild(shadow)
@@ -550,9 +551,13 @@ final class GameScene3D: SKScene {
     }
 
     /// The paddle casts one shadow, on the nearest wall: the closer it gets,
-    /// the darker and larger the shadow — a live proximity gauge.
+    /// the darker and larger the shadow — a live proximity gauge. The shadow
+    /// is the paddle's actual footprint projected onto that wall (a
+    /// perspective-correct rounded trapezoid), not a generic blob.
     private func syncPaddleShadow() {
         guard let shadow = paddleShadow else { return }
+        let z0 = paddleZ - 12
+        let z1 = paddleZ + Config3D.paddleDepth + 12
         let zMid = paddleZ + Config3D.paddleDepth / 2
         let distances: [CGFloat] = [
             paddleXY.y + Tunnel.halfH,  // floor
@@ -563,20 +568,35 @@ final class GameScene3D: SKScene {
         var wall = 0
         for i in 1..<4 where distances[i] < distances[wall] { wall = i }
 
-        let anchors: [Vec3] = [
-            Vec3(x: paddleXY.x, y: -Tunnel.halfH, z: zMid),
-            Vec3(x: paddleXY.x, y: Tunnel.halfH, z: zMid),
-            Vec3(x: -Tunnel.halfW, y: paddleXY.y, z: zMid),
-            Vec3(x: Tunnel.halfW, y: paddleXY.y, z: zMid),
-        ]
         let halfSpan = wall < 2 ? Tunnel.halfH : Tunnel.halfW
         let proximity = 1 - min(distances[wall] / halfSpan, 1) // 1 at the wall, 0 at center
+        let inflate = 1.0 + 0.5 * proximity // shadow grows as the paddle closes in
 
+        // paddle footprint on the wall, in world space
+        let corners: [Vec3]
+        switch wall {
+        case 0, 1: // floor or ceiling: width x slab-depth footprint
+            let hw = Config3D.paddleSize.width / 2 * inflate
+            let wallY: CGFloat = wall == 0 ? -Tunnel.halfH : Tunnel.halfH
+            corners = [
+                Vec3(x: paddleXY.x - hw, y: wallY, z: z0),
+                Vec3(x: paddleXY.x + hw, y: wallY, z: z0),
+                Vec3(x: paddleXY.x + hw, y: wallY, z: z1),
+                Vec3(x: paddleXY.x - hw, y: wallY, z: z1),
+            ]
+        default: // side walls: height x slab-depth footprint
+            let hh = Config3D.paddleSize.height / 2 * inflate
+            let wallX: CGFloat = wall == 2 ? -Tunnel.halfW : Tunnel.halfW
+            corners = [
+                Vec3(x: wallX, y: paddleXY.y - hh, z: z0),
+                Vec3(x: wallX, y: paddleXY.y + hh, z: z0),
+                Vec3(x: wallX, y: paddleXY.y + hh, z: z1),
+                Vec3(x: wallX, y: paddleXY.y - hh, z: z1),
+            ]
+        }
+        let projected = corners.map { Tunnel.project($0, in: size) }
+        shadow.path = Draw.roundedPolygon(projected, radius: 14 * Tunnel.scale(at: zMid))
         shadow.isHidden = false
-        shadow.position = Tunnel.project(anchors[wall], in: size)
-        shadow.zRotation = wall < 2 ? 0 : .pi / 2 // upright ellipse on side walls
-        let depthScale = Tunnel.scale(at: zMid)
-        shadow.setScale(depthScale * (0.9 + 1.1 * proximity))
         shadow.alpha = 0.15 + 0.55 * proximity
         shadow.zPosition = 2000 - zMid - 25
     }
@@ -776,7 +796,8 @@ final class GameScene3D: SKScene {
         } else if brick.isIndestructible {
             SoundPlayer.play(.wallHit, on: self)
         } else {
-            SoundPlayer.play(.brickHit, on: self)
+            // brick survived and cracked — distinct snap, not the generic blip
+            SoundPlayer.play(.crack, on: self)
         }
     }
 
