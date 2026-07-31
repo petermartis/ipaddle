@@ -172,26 +172,36 @@ final class Brick3D {
                                        cornerRadius: min(radius, min(rect.width, rect.height) / 2))
             let space = CGColorSpaceCreateDeviceRGB()
 
-            // body: bright top rolling to a darker bottom (UIKit y-down)
+            // body: strong top-lit gradient — the contrast is what makes the
+            // face read as a curved 3D surface instead of a flat sticker
             cg.saveGState()
             cg.addPath(rounded.cgPath)
             cg.clip()
             if let body = CGGradient(colorsSpace: space,
-                                     colors: [shaded(base, 1.22).cgColor,
-                                              shaded(base, 0.98).cgColor,
-                                              shaded(base, 0.62).cgColor] as CFArray,
-                                     locations: [0, 0.45, 1]) {
+                                     colors: [shaded(base, 1.38).cgColor,
+                                              shaded(base, 1.02).cgColor,
+                                              shaded(base, 0.48).cgColor] as CFArray,
+                                     locations: [0, 0.42, 1]) {
                 cg.drawLinearGradient(body, start: CGPoint(x: 0, y: rect.minY),
                                       end: CGPoint(x: 0, y: rect.maxY), options: [])
             }
             // soft specular sheen across the top third
             if let sheen = CGGradient(colorsSpace: space,
-                                      colors: [UIColor.white.withAlphaComponent(0.35).cgColor,
+                                      colors: [UIColor.white.withAlphaComponent(0.40).cgColor,
                                                UIColor.white.withAlphaComponent(0).cgColor] as CFArray,
                                       locations: [0, 1]) {
                 cg.drawLinearGradient(sheen, start: CGPoint(x: 0, y: rect.minY),
                                       end: CGPoint(x: 0, y: rect.minY + rect.height * 0.38),
                                       options: [])
+            }
+            // smooth ambient-occlusion falloff hugging the bottom curve
+            if let occlusion = CGGradient(colorsSpace: space,
+                                          colors: [UIColor.black.withAlphaComponent(0).cgColor,
+                                                   UIColor.black.withAlphaComponent(0.30).cgColor] as CFArray,
+                                          locations: [0, 1]) {
+                cg.drawLinearGradient(occlusion,
+                                      start: CGPoint(x: 0, y: rect.maxY - rect.height * 0.30),
+                                      end: CGPoint(x: 0, y: rect.maxY), options: [])
             }
             cg.restoreGState()
 
@@ -216,10 +226,39 @@ final class Brick3D {
         return (r + b * 10, g)
     }
 
+    /// Soft blurred drop shadow, cached per size bucket.
+    private static func dropShadowTexture(width: CGFloat, height: CGFloat,
+                                          radius: CGFloat) -> SKTexture {
+        let key = String(format: "shadow-%.0fx%.0f-r%.0f", width, height, radius)
+        if let cached = textureCache[key] { return cached }
+        let pad: CGFloat = 24
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        let renderer = UIGraphicsImageRenderer(
+            size: CGSize(width: width + pad * 2, height: height + pad * 2), format: format)
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let rect = CGRect(x: pad, y: pad, width: width, height: height)
+            let rounded = UIBezierPath(roundedRect: rect,
+                                       cornerRadius: min(radius, min(width, height) / 2))
+            cg.setShadow(offset: .zero, blur: 16,
+                         color: UIColor.black.withAlphaComponent(0.9).cgColor)
+            cg.setFillColor(UIColor.black.cgColor)
+            cg.addPath(rounded.cgPath)
+            cg.fillPath()
+        }
+        let texture = SKTexture(image: image)
+        textureCache[key] = texture
+        return texture
+    }
+
     private static func buildNode(boxMin: Vec3, boxMax: Vec3, color: SKColor, sceneSize: CGSize) -> SKNode {
         let node = SKNode()
         let f = faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMin.z, sceneSize: sceneSize)
-        let b = faceCorners(boxMin: boxMin, boxMax: boxMax, z: boxMax.z, sceneSize: sceneSize)
+        // the visual extrusion is drawn twice as deep as the physics box, so
+        // off-center bricks show a meaty flank instead of a sliver
+        let visualBackZ = boxMax.z + (boxMax.z - boxMin.z)
+        let b = faceCorners(boxMin: boxMin, boxMax: boxMax, z: visualBackZ, sceneSize: sceneSize)
         let scaleF = Tunnel.scale(at: boxMin.z)
 
         // hand-made variance without touching the geometry: each brick gets
@@ -236,26 +275,38 @@ final class Brick3D {
         let backHeight = b[2].y - b[1].y
         let backRadius = min(backWidth, backHeight) * 0.24 * wobble
 
+        // drop shadow cast onto whatever is behind this brick, thrown down
+        // and away from the tunnel axis — the single strongest "it's a solid
+        // object floating in space" cue
+        let cx = (boxMin.x + boxMax.x) / 2
+        let cy = (boxMin.y + boxMax.y) / 2
+        let shadowSprite = SKSpriteNode(texture: dropShadowTexture(width: width, height: height,
+                                                                   radius: frontRadius))
+        shadowSprite.position = CGPoint(
+            x: (f[0].x + f[1].x) / 2 + (cx / Tunnel.halfW) * 16,
+            y: (f[1].y + f[2].y) / 2 - 14 + (cy / Tunnel.halfH) * 6)
+        shadowSprite.alpha = 0.5
+        shadowSprite.zPosition = -1
+        node.addChild(shadowSprite)
+
         // back face silhouette
-        node.addChild(quad(b, fill: shaded(color, 0.30 * depthDim), cornerRadius: backRadius))
+        node.addChild(quad(b, fill: shaded(color, 0.26 * depthDim), cornerRadius: backRadius))
 
         // sides facing the camera, lit from above — strokeless so they read
         // as the brick's own material turning away from the light
         let sideRadius = max(frontRadius, backRadius)
-        let cx = (boxMin.x + boxMax.x) / 2
-        let cy = (boxMin.y + boxMax.y) / 2
         if cx > 1 {
-            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.55 * depthDim),
+            node.addChild(quad([f[0], f[3], b[3], b[0]], fill: shaded(color, 0.50 * depthDim),
                                cornerRadius: sideRadius))
         } else if cx < -1 {
-            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.55 * depthDim),
+            node.addChild(quad([f[1], f[2], b[2], b[1]], fill: shaded(color, 0.50 * depthDim),
                                cornerRadius: sideRadius))
         }
         if cy > 1 {
-            node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.34 * depthDim),
+            node.addChild(quad([f[0], f[1], b[1], b[0]], fill: shaded(color, 0.30 * depthDim),
                                cornerRadius: sideRadius))
         } else if cy < -1 {
-            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 0.92 * depthDim),
+            node.addChild(quad([f[3], f[2], b[2], b[3]], fill: shaded(color, 0.95 * depthDim),
                                cornerRadius: sideRadius))
         }
 
