@@ -210,8 +210,8 @@ final class Brick3D {
             cg.saveGState()
             cg.addPath(rounded.cgPath)
             cg.clip()
-            cg.setShadow(offset: .zero, blur: min(width, height) * 0.22,
-                         color: UIColor.black.withAlphaComponent(0.65).cgColor)
+            cg.setShadow(offset: .zero, blur: min(width, height) * 0.11,
+                         color: UIColor.black.withAlphaComponent(0.45).cgColor)
             let inverse = CGMutablePath()
             inverse.addRect(CGRect(x: -60, y: -60, width: canvas.width + 120, height: canvas.height + 120))
             inverse.addPath(rounded.cgPath)
@@ -231,13 +231,13 @@ final class Brick3D {
 
             // 4. corner specular glint (as on the reference cube)
             if let glint = CGGradient(colorsSpace: space,
-                                      colors: [UIColor.white.withAlphaComponent(0.55).cgColor,
+                                      colors: [UIColor.white.withAlphaComponent(0.38).cgColor,
                                                UIColor.white.withAlphaComponent(0).cgColor] as CFArray,
                                       locations: [0, 1]) {
                 let center = CGPoint(x: rect.minX + rect.width * 0.26,
                                      y: rect.minY + rect.height * 0.24)
                 cg.drawRadialGradient(glint, startCenter: center, startRadius: 0,
-                                      endCenter: center, endRadius: min(width, height) * 0.55,
+                                      endCenter: center, endRadius: min(width, height) * 0.45,
                                       options: [])
             }
             cg.restoreGState()
@@ -270,7 +270,7 @@ final class Brick3D {
         // front face is an axis-aligned rect (constant z), so measure it
         let width = f[1].x - f[0].x
         let height = f[2].y - f[1].y
-        let radius = min(width, height) * 0.26 * wobble
+        let radius = min(width, height) * 0.21 * wobble
 
         // extrusion direction: toward the tunnel's vanishing point, growing
         // with distance from the axis (center bricks show no flank, just as

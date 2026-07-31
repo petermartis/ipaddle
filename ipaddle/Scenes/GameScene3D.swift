@@ -33,7 +33,9 @@ final class GameScene3D: SKScene {
     private var pinchStartZ: CGFloat = 0
     private var lastPinchZone = 0
     private var pinchRecognizer: UIPinchGestureRecognizer?
-    private var paddleShadow: SKShapeNode?
+    /// Paddle shadows on floor, ceiling, left, right — proximity-gated.
+    private var paddleShadows: [SKShapeNode] = []
+    private var paddleFacets: SKShapeNode?
     private var scoreLabel: SKLabelNode?
     private var livesLabel: SKLabelNode?
     private var hintLabel: SKLabelNode?
@@ -271,38 +273,49 @@ final class GameScene3D: SKScene {
         container.zPosition = 2100 // in front of everything in the tunnel
 
         let back = SKShapeNode()
-        back.fillColor = SKColor(red: 0.82, green: 0.84, blue: 0.90, alpha: 0.16)
-        back.strokeColor = SKColor(red: 0.95, green: 0.96, blue: 1.0, alpha: 0.95)
+        back.fillColor = SKColor(red: 0.72, green: 0.86, blue: 1.0, alpha: 0.28)
+        back.strokeColor = SKColor(red: 0.88, green: 0.97, blue: 1.0, alpha: 1.0)
         back.lineWidth = 2
         back.zPosition = 0
         container.addChild(back)
         paddleBack = back
 
         let rails = SKShapeNode()
-        rails.strokeColor = SKColor(red: 0.95, green: 0.96, blue: 1.0, alpha: 0.55)
+        rails.strokeColor = SKColor(red: 0.88, green: 0.97, blue: 1.0, alpha: 0.7)
         rails.lineWidth = 1.5
         rails.zPosition = 1
         container.addChild(rails)
         paddleRails = rails
 
+        // diagonal facet lines across the front pane: the "cut gem" look
+        let facets = SKShapeNode()
+        facets.strokeColor = SKColor(red: 0.88, green: 0.97, blue: 1.0, alpha: 0.30)
+        facets.lineWidth = 1
+        facets.zPosition = 2
+        container.addChild(facets)
+        paddleFacets = facets
+
         let front = SKShapeNode()
-        front.fillColor = SKColor(red: 0.82, green: 0.84, blue: 0.90, alpha: 0.10)
-        front.strokeColor = SKColor(red: 0.95, green: 0.96, blue: 1.0, alpha: 0.6)
+        front.fillColor = SKColor(red: 0.72, green: 0.86, blue: 1.0, alpha: 0.20)
+        front.strokeColor = SKColor(red: 0.92, green: 0.98, blue: 1.0, alpha: 0.85)
         front.lineWidth = 2
-        front.zPosition = 2
+        front.zPosition = 3
         container.addChild(front)
         paddleFront = front
 
         addChild(container)
         paddleNode = container
 
-        // shadow the paddle casts on whichever wall it is closest to;
-        // the path is rebuilt each frame as a perspective-correct footprint
-        let shadow = SKShapeNode()
-        shadow.fillColor = SKColor.black.withAlphaComponent(0.7)
-        shadow.strokeColor = .clear
-        addChild(shadow)
-        paddleShadow = shadow
+        // proximity shadows, one per wall; paths are rebuilt each frame as
+        // perspective-correct footprints
+        paddleShadows = (0..<4).map { _ in
+            let shadow = SKShapeNode()
+            shadow.fillColor = SKColor.black.withAlphaComponent(0.7)
+            shadow.strokeColor = .clear
+            shadow.isHidden = true
+            addChild(shadow)
+            return shadow
+        }
 
         paddleXY = .zero
         syncPaddleNode()
@@ -530,19 +543,23 @@ final class GameScene3D: SKScene {
         }
         let f = [pt(-hw, -hh, zFront), pt(hw, -hh, zFront), pt(hw, hh, zFront), pt(-hw, hh, zFront)]
         let b = [pt(-hw, -hh, zBack), pt(hw, -hh, zBack), pt(hw, hh, zBack), pt(-hw, hh, zBack)]
-        paddleFront?.path = Draw.roundedPolygon(f, radius: 22 * Tunnel.scale(at: zFront))
-        paddleBack?.path = Draw.roundedPolygon(b, radius: 22 * Tunnel.scale(at: zBack))
+        // near-sharp corners: cut crystal, not molded plastic
+        paddleFront?.path = Draw.roundedPolygon(f, radius: 5 * Tunnel.scale(at: zFront))
+        paddleBack?.path = Draw.roundedPolygon(b, radius: 5 * Tunnel.scale(at: zBack))
 
-        // rails pull in slightly toward each pane's center so their endpoints
-        // land inside the rounded corners instead of poking past them
-        let fc = Tunnel.project(Vec3(x: paddleXY.x, y: paddleXY.y, z: zFront), in: size)
-        let bc = Tunnel.project(Vec3(x: paddleXY.x, y: paddleXY.y, z: zBack), in: size)
+        // corner-to-corner rails between the panes
         let rails = CGMutablePath()
         for i in 0..<4 {
-            rails.move(to: GameScene3D.lerp(f[i], fc, 0.10))
-            rails.addLine(to: GameScene3D.lerp(b[i], bc, 0.10))
+            rails.move(to: f[i])
+            rails.addLine(to: b[i])
         }
         paddleRails?.path = rails
+
+        // gem facets: diagonals across the front pane
+        let facets = CGMutablePath()
+        facets.move(to: f[0]); facets.addLine(to: f[2])
+        facets.move(to: f[1]); facets.addLine(to: f[3])
+        paddleFacets?.path = facets
 
         // stay correctly sorted against the ball and walls at this depth
         paddleNode?.zPosition = 2000 - paddleZ + 8
@@ -550,12 +567,11 @@ final class GameScene3D: SKScene {
         syncPaddleShadow()
     }
 
-    /// The paddle casts one shadow, on the nearest wall: the closer it gets,
-    /// the darker and larger the shadow — a live proximity gauge. The shadow
-    /// is the paddle's actual footprint projected onto that wall (a
-    /// perspective-correct rounded trapezoid), not a generic blob.
+    /// Same policy as the ball: each wall shows the paddle's footprint
+    /// shadow only as the paddle gets near it, growing and darkening
+    /// linearly with proximity. Paddle at the tunnel center: no shadows.
     private func syncPaddleShadow() {
-        guard let shadow = paddleShadow else { return }
+        guard paddleShadows.count == 4 else { return }
         let z0 = paddleZ - 12
         let z1 = paddleZ + Config3D.paddleDepth + 12
         let zMid = paddleZ + Config3D.paddleDepth / 2
@@ -565,40 +581,45 @@ final class GameScene3D: SKScene {
             paddleXY.x + Tunnel.halfW,  // left wall
             Tunnel.halfW - paddleXY.x,  // right wall
         ]
-        var wall = 0
-        for i in 1..<4 where distances[i] < distances[wall] { wall = i }
+        let halfSpans: [CGFloat] = [Tunnel.halfH, Tunnel.halfH, Tunnel.halfW, Tunnel.halfW]
 
-        let halfSpan = wall < 2 ? Tunnel.halfH : Tunnel.halfW
-        let proximity = 1 - min(distances[wall] / halfSpan, 1) // 1 at the wall, 0 at center
-        let inflate = 1.0 + 0.5 * proximity // shadow grows as the paddle closes in
+        for wall in 0..<4 {
+            let shadow = paddleShadows[wall]
+            let proximity = max(0, 1 - distances[wall] / halfSpans[wall])
+            guard proximity > 0.02 else {
+                shadow.isHidden = true
+                continue
+            }
+            let inflate = 1.0 + 0.5 * proximity
 
-        // paddle footprint on the wall, in world space
-        let corners: [Vec3]
-        switch wall {
-        case 0, 1: // floor or ceiling: width x slab-depth footprint
-            let hw = Config3D.paddleSize.width / 2 * inflate
-            let wallY: CGFloat = wall == 0 ? -Tunnel.halfH : Tunnel.halfH
-            corners = [
-                Vec3(x: paddleXY.x - hw, y: wallY, z: z0),
-                Vec3(x: paddleXY.x + hw, y: wallY, z: z0),
-                Vec3(x: paddleXY.x + hw, y: wallY, z: z1),
-                Vec3(x: paddleXY.x - hw, y: wallY, z: z1),
-            ]
-        default: // side walls: height x slab-depth footprint
-            let hh = Config3D.paddleSize.height / 2 * inflate
-            let wallX: CGFloat = wall == 2 ? -Tunnel.halfW : Tunnel.halfW
-            corners = [
-                Vec3(x: wallX, y: paddleXY.y - hh, z: z0),
-                Vec3(x: wallX, y: paddleXY.y + hh, z: z0),
-                Vec3(x: wallX, y: paddleXY.y + hh, z: z1),
-                Vec3(x: wallX, y: paddleXY.y - hh, z: z1),
-            ]
+            // paddle footprint on the wall, in world space
+            let corners: [Vec3]
+            switch wall {
+            case 0, 1: // floor or ceiling: width x slab-depth footprint
+                let hw = Config3D.paddleSize.width / 2 * inflate
+                let wallY: CGFloat = wall == 0 ? -Tunnel.halfH : Tunnel.halfH
+                corners = [
+                    Vec3(x: paddleXY.x - hw, y: wallY, z: z0),
+                    Vec3(x: paddleXY.x + hw, y: wallY, z: z0),
+                    Vec3(x: paddleXY.x + hw, y: wallY, z: z1),
+                    Vec3(x: paddleXY.x - hw, y: wallY, z: z1),
+                ]
+            default: // side walls: height x slab-depth footprint
+                let hh = Config3D.paddleSize.height / 2 * inflate
+                let wallX: CGFloat = wall == 2 ? -Tunnel.halfW : Tunnel.halfW
+                corners = [
+                    Vec3(x: wallX, y: paddleXY.y - hh, z: z0),
+                    Vec3(x: wallX, y: paddleXY.y + hh, z: z0),
+                    Vec3(x: wallX, y: paddleXY.y + hh, z: z1),
+                    Vec3(x: wallX, y: paddleXY.y - hh, z: z1),
+                ]
+            }
+            let projected = corners.map { Tunnel.project($0, in: size) }
+            shadow.path = Draw.roundedPolygon(projected, radius: 14 * Tunnel.scale(at: zMid))
+            shadow.isHidden = false
+            shadow.alpha = 0.7 * proximity
+            shadow.zPosition = 2000 - zMid - 25
         }
-        let projected = corners.map { Tunnel.project($0, in: size) }
-        shadow.path = Draw.roundedPolygon(projected, radius: 14 * Tunnel.scale(at: zMid))
-        shadow.isHidden = false
-        shadow.alpha = 0.15 + 0.55 * proximity
-        shadow.zPosition = 2000 - zMid - 25
     }
 
     // MARK: - Pause
@@ -856,8 +877,9 @@ final class GameScene3D: SKScene {
         syncAimShadow()
     }
 
-    /// One cast shadow per wall; each grows softer with distance from its
-    /// wall and tighter/darker as the ball closes in — a live 3D crosshair.
+    /// Approach-gated cast shadows: a wall only shows the ball's shadow
+    /// while the ball is moving toward it, growing and darkening linearly
+    /// as the ball closes in. Ball at the tunnel center: no shadows at all.
     private func syncWallShadows(depthScale: CGFloat) {
         guard wallShadows.count == 4 else { return }
         let anchors: [Vec3] = [
@@ -872,14 +894,21 @@ final class GameScene3D: SKScene {
             ballPos.x + Tunnel.halfW,
             Tunnel.halfW - ballPos.x,
         ]
-        let spans: [CGFloat] = [Tunnel.height, Tunnel.height, Tunnel.width, Tunnel.width]
+        let halfSpans: [CGFloat] = [Tunnel.halfH, Tunnel.halfH, Tunnel.halfW, Tunnel.halfW]
+        let approaching: [Bool] = [
+            ballVel.y < -1, ballVel.y > 1, ballVel.x < -1, ballVel.x > 1,
+        ]
         for i in 0..<4 {
             let shadow = wallShadows[i]
+            let proximity = max(0, 1 - distances[i] / halfSpans[i])
+            guard approaching[i], proximity > 0.02, ballInPlay else {
+                shadow.isHidden = true
+                continue
+            }
             shadow.isHidden = false
             shadow.position = Tunnel.project(anchors[i], in: size)
-            let spread = 1 + distances[i] / 900
-            shadow.setScale(depthScale * spread)
-            shadow.alpha = max(0.16, 0.72 - distances[i] / spans[i] * 0.55)
+            shadow.setScale(depthScale * (0.7 + 0.9 * proximity))
+            shadow.alpha = 0.75 * proximity
             shadow.zPosition = 2000 - ballPos.z - 25
         }
     }
