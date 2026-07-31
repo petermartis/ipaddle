@@ -11,6 +11,15 @@ enum Sound: String, CaseIterable {
     case loseLife = "lose_life.wav"
     case levelClear = "level_clear.wav"
     case gameOver = "game_over.wav"
+    case pinch0 = "pinch_0.wav"
+    case pinch1 = "pinch_1.wav"
+    case pinch2 = "pinch_2.wav"
+    case pinch3 = "pinch_3.wav"
+    case pinch4 = "pinch_4.wav"
+    case pinch5 = "pinch_5.wav"
+
+    /// Rising scale for paddle depth zones: index 0 = front, 5 = deepest.
+    static let pinchScale: [Sound] = [.pinch0, .pinch1, .pinch2, .pinch3, .pinch4, .pinch5]
 }
 
 /// Cached SKActions for low-latency effect playback, plus haptic feedback.

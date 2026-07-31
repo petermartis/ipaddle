@@ -24,11 +24,12 @@ final class Brick3D {
     let color: SKColor
 
     private static func style(for char: Character) -> (hp: Int, points: Int, color: SKColor, indestructible: Bool)? {
+        // saturated neon palette
         switch char {
-        case "1": return (1, 50, SKColor(red: 0.37, green: 0.75, blue: 0.35, alpha: 1), false)
-        case "2": return (2, 100, SKColor(red: 0.28, green: 0.55, blue: 0.92, alpha: 1), false)
-        case "3": return (3, 150, SKColor(red: 0.89, green: 0.24, blue: 0.24, alpha: 1), false)
-        case "X": return (0, 0, SKColor(red: 0.55, green: 0.57, blue: 0.62, alpha: 1), true)
+        case "1": return (1, 50, SKColor(red: 0.16, green: 0.95, blue: 0.45, alpha: 1), false)
+        case "2": return (2, 100, SKColor(red: 0.20, green: 0.62, blue: 1.00, alpha: 1), false)
+        case "3": return (3, 150, SKColor(red: 1.00, green: 0.28, blue: 0.42, alpha: 1), false)
+        case "X": return (0, 0, SKColor(red: 0.62, green: 0.65, blue: 0.72, alpha: 1), true)
         default: return nil
         }
     }
@@ -124,7 +125,8 @@ final class Brick3D {
     private static func shaded(_ color: SKColor, _ factor: CGFloat) -> SKColor {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         color.getRed(&r, green: &g, blue: &b, alpha: &a)
-        return SKColor(red: r * factor, green: g * factor, blue: b * factor, alpha: a)
+        return SKColor(red: min(1, r * factor), green: min(1, g * factor),
+                       blue: min(1, b * factor), alpha: a)
     }
 
     private static func quad(_ points: [CGPoint], fill: SKColor, stroke: SKColor,
@@ -189,10 +191,13 @@ final class Brick3D {
                                stroke: edgeColor, cornerRadius: sideRadius))
         }
 
-        // front face on top
-        let front = quad(f, fill: shaded(color, depthDim), stroke: edgeColor,
+        // front face on top: slightly deepened fill with a glowing neon rim —
+        // the glow hugging the rounded corners is what sells the molded look
+        let front = quad(f, fill: shaded(color, depthDim * 0.88),
+                         stroke: shaded(color, 1.45).withAlphaComponent(0.9),
                          cornerRadius: frontRadius)
-        front.lineWidth = 1.5
+        front.lineWidth = 2
+        front.glowWidth = 5 * Tunnel.scale(at: boxMin.z) * depthDim
         node.addChild(front)
 
         // specular strip along the top of the front face…

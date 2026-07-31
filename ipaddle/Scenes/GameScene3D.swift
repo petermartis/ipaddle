@@ -31,7 +31,9 @@ final class GameScene3D: SKScene {
     private var paddleRails: SKShapeNode?
     private var paddleZ: CGFloat = 0
     private var pinchStartZ: CGFloat = 0
+    private var lastPinchZone = 0
     private var pinchRecognizer: UIPinchGestureRecognizer?
+    private var paddleShadow: SKShapeNode?
     private var scoreLabel: SKLabelNode?
     private var livesLabel: SKLabelNode?
     private var hintLabel: SKLabelNode?
@@ -92,12 +94,20 @@ final class GameScene3D: SKScene {
             controlTouch = nil // two fingers down: stop treating either as a drag
         case .changed:
             // pinch in pushes the paddle into the tunnel, pinch out pulls it back
-            let candidate = pinchStartZ - (recognizer.scale - 1) * 550
+            let candidate = pinchStartZ - (recognizer.scale - 1) * Config3D.pinchSensitivity
             paddleZ = min(max(candidate, 0), Config3D.maxPaddleZ)
             syncPaddleNode()
             if !ballInPlay {
                 ballPos = Vec3(x: paddleXY.x, y: paddleXY.y, z: servingBallZ)
                 syncBallNode()
+            }
+            // sonar-style feedback: rising blips as the paddle recedes,
+            // falling blips as it comes back toward the player
+            let zoneWidth = Config3D.maxPaddleZ / CGFloat(Config3D.pinchZones)
+            let zone = min(Config3D.pinchZones - 1, max(0, Int(paddleZ / zoneWidth)))
+            if zone != lastPinchZone {
+                SoundPlayer.play(Sound.pinchScale[zone], on: self)
+                lastPinchZone = zone
             }
         default:
             break
@@ -109,16 +119,38 @@ final class GameScene3D: SKScene {
         paddleZ + Config3D.paddleDepth + Config3D.ballRadius + 2
     }
 
-    private func wallQuad(_ points: [CGPoint], fill: SKColor, zPosition: CGFloat) {
-        let path = CGMutablePath()
-        path.addLines(between: points)
-        path.closeSubpath()
-        let quad = SKShapeNode(path: path)
-        quad.fillColor = fill
-        quad.strokeColor = .clear
-        quad.lineWidth = 0
-        quad.zPosition = zPosition
-        addChild(quad)
+    /// A wall drawn as one texture with a real linear gradient along the
+    /// depth axis — smooth shading, no banding.
+    private func gradientWall(_ points: [CGPoint], from nearColor: UIColor, to farColor: UIColor,
+                              start: CGPoint, end: CGPoint) {
+        var minX = points[0].x, maxX = points[0].x
+        var minY = points[0].y, maxY = points[0].y
+        for p in points {
+            minX = min(minX, p.x); maxX = max(maxX, p.x)
+            minY = min(minY, p.y); maxY = max(maxY, p.y)
+        }
+        let bbox = CGRect(x: minX, y: minY, width: max(maxX - minX, 1), height: max(maxY - minY, 1))
+        // scene y-up → UIKit y-down
+        func flip(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x - bbox.minX, y: bbox.maxY - p.y) }
+
+        let renderer = UIGraphicsImageRenderer(size: bbox.size)
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let path = CGMutablePath()
+            path.addLines(between: points.map(flip))
+            path.closeSubpath()
+            cg.addPath(path)
+            cg.clip()
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                            colors: [nearColor.cgColor, farColor.cgColor] as CFArray,
+                                            locations: [0, 1]) else { return }
+            cg.drawLinearGradient(gradient, start: flip(start), end: flip(end),
+                                  options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        }
+        let sprite = SKSpriteNode(texture: SKTexture(image: image))
+        sprite.position = CGPoint(x: bbox.midX, y: bbox.midY)
+        sprite.zPosition = 700 // behind everything that lives in the tunnel
+        addChild(sprite)
     }
 
     private func drawTunnel() {
@@ -138,29 +170,39 @@ final class GameScene3D: SKScene {
         rearWall.zPosition = 2000 - Tunnel.depth - 20
         addChild(rearWall)
 
-        // side walls: slate-blue bands, bright at the front and darkening
-        // into the depth; floor catches the most light, ceiling the least
+        // side walls: slate-blue with a single smooth gradient per wall,
+        // bright at the front opening and falling off into the depth; the
+        // floor catches the most light, the ceiling the least
         let wallBase = (r: CGFloat(0.20), g: CGFloat(0.26), b: CGFloat(0.38))
-        let bands = 8
-        for i in 0..<bands {
-            let z0 = Tunnel.depth * CGFloat(i) / CGFloat(bands)
-            let z1 = Tunnel.depth * CGFloat(i + 1) / CGFloat(bands)
-            let c0 = Tunnel.crossSection(at: z0, in: size)
-            let c1 = Tunnel.crossSection(at: z1, in: size)
-            // crossSection corner order: 0 bottom-left, 1 bottom-right, 2 top-right, 3 top-left
-            let depthShade = 0.95 - 0.72 * CGFloat(i) / CGFloat(bands - 1)
-            func wallColor(_ faceLight: CGFloat) -> SKColor {
-                SKColor(red: wallBase.r * depthShade * faceLight,
-                        green: wallBase.g * depthShade * faceLight,
-                        blue: wallBase.b * depthShade * faceLight,
-                        alpha: 1)
-            }
-            let z = 2000 - z1 - 30
-            wallQuad([c0[0], c0[1], c1[1], c1[0]], fill: wallColor(1.15), zPosition: z) // floor
-            wallQuad([c0[3], c0[2], c1[2], c1[3]], fill: wallColor(0.62), zPosition: z) // ceiling
-            wallQuad([c0[0], c0[3], c1[3], c1[0]], fill: wallColor(0.88), zPosition: z) // left
-            wallQuad([c0[1], c0[2], c1[2], c1[1]], fill: wallColor(0.88), zPosition: z) // right
+        func wallColor(_ faceLight: CGFloat, _ depthShade: CGFloat) -> UIColor {
+            UIColor(red: wallBase.r * depthShade * faceLight,
+                    green: wallBase.g * depthShade * faceLight,
+                    blue: wallBase.b * depthShade * faceLight,
+                    alpha: 1)
         }
+        // crossSection corner order: 0 bottom-left, 1 bottom-right, 2 top-right, 3 top-left
+        let front = Tunnel.crossSection(at: 0, in: size)
+        func mid(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
+            CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+        }
+        let nearShade: CGFloat = 0.95
+        let farShade: CGFloat = 0.20
+        // floor
+        gradientWall([front[0], front[1], rear[1], rear[0]],
+                     from: wallColor(1.15, nearShade), to: wallColor(1.15, farShade),
+                     start: mid(front[0], front[1]), end: mid(rear[0], rear[1]))
+        // ceiling
+        gradientWall([front[3], front[2], rear[2], rear[3]],
+                     from: wallColor(0.62, nearShade), to: wallColor(0.62, farShade),
+                     start: mid(front[3], front[2]), end: mid(rear[3], rear[2]))
+        // left wall
+        gradientWall([front[0], front[3], rear[3], rear[0]],
+                     from: wallColor(0.88, nearShade), to: wallColor(0.88, farShade),
+                     start: mid(front[0], front[3]), end: mid(rear[0], rear[3]))
+        // right wall
+        gradientWall([front[1], front[2], rear[2], rear[1]],
+                     from: wallColor(0.88, nearShade), to: wallColor(0.88, farShade),
+                     start: mid(front[1], front[2]), end: mid(rear[1], rear[2]))
 
         // depth rings, fading toward the rear
         var z: CGFloat = 0
@@ -178,7 +220,6 @@ final class GameScene3D: SKScene {
         }
 
         // corner rails from the front plane to the rear wall
-        let front = Tunnel.crossSection(at: 0, in: size)
         for i in 0..<4 {
             let path = CGMutablePath()
             path.move(to: front[i])
@@ -193,19 +234,22 @@ final class GameScene3D: SKScene {
 
     private func buildBricks() {
         let layers = Levels3D.all[levelIndex]
-        let cellW = Tunnel.width / CGFloat(Config3D.brickColumns)
-        let cellH = Tunnel.height / CGFloat(Config3D.brickRows)
-        let gapX: CGFloat = 8
-        let gapY: CGFloat = 12
 
         for (layerIndex, rows) in layers.enumerated() {
+            // grid size comes from the map: fewer cells = bigger bricks
+            let columns = rows.first?.count ?? 1
+            let cellW = Tunnel.width / CGFloat(columns)
+            let cellH = Tunnel.height / CGFloat(rows.count)
+            let gapX = cellW * 0.07
+            let gapY = cellH * 0.12
+
             // rearmost layer sits just in front of the rear wall
             let zBack = Tunnel.depth - Config3D.rearGap
                 - CGFloat(layers.count - 1 - layerIndex) * Config3D.layerSpacing
             let zFront = zBack - Config3D.brickThickness
 
             for (rowIndex, row) in rows.enumerated() {
-                for (colIndex, char) in row.enumerated() where colIndex < Config3D.brickColumns {
+                for (colIndex, char) in row.enumerated() where colIndex < columns {
                     let xMin = -Tunnel.halfW + CGFloat(colIndex) * cellW + gapX / 2
                     let yMax = Tunnel.halfH - CGFloat(rowIndex) * cellH - gapY / 2
                     let boxMin = Vec3(x: xMin, y: yMax - (cellH - gapY), z: zFront)
@@ -251,6 +295,14 @@ final class GameScene3D: SKScene {
 
         addChild(container)
         paddleNode = container
+
+        // shadow the paddle casts on whichever wall it is closest to
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: 100, height: 40))
+        shadow.fillColor = SKColor.black.withAlphaComponent(0.7)
+        shadow.strokeColor = .clear
+        addChild(shadow)
+        paddleShadow = shadow
+
         paddleXY = .zero
         syncPaddleNode()
     }
@@ -263,11 +315,11 @@ final class GameScene3D: SKScene {
         // one soft shadow per wall: floor, ceiling, left, right — as if lit
         // from every wall, so each shadow tells you the distance to that wall
         let r = Config3D.ballRadius
-        let horizontal = CGSize(width: r * 2.4, height: r * 0.9) // floor/ceiling
-        let vertical = CGSize(width: r * 0.9, height: r * 2.4)   // left/right walls
+        let horizontal = CGSize(width: r * 2.9, height: r * 1.1) // floor/ceiling
+        let vertical = CGSize(width: r * 1.1, height: r * 2.9)   // left/right walls
         wallShadows = [horizontal, horizontal, vertical, vertical].map { size in
             let shadow = SKShapeNode(ellipseOf: size)
-            shadow.fillColor = SKColor.black.withAlphaComponent(0.55)
+            shadow.fillColor = SKColor.black.withAlphaComponent(0.8)
             shadow.strokeColor = .clear
             shadow.isHidden = true
             addChild(shadow)
@@ -493,6 +545,40 @@ final class GameScene3D: SKScene {
 
         // stay correctly sorted against the ball and walls at this depth
         paddleNode?.zPosition = 2000 - paddleZ + 8
+
+        syncPaddleShadow()
+    }
+
+    /// The paddle casts one shadow, on the nearest wall: the closer it gets,
+    /// the darker and larger the shadow — a live proximity gauge.
+    private func syncPaddleShadow() {
+        guard let shadow = paddleShadow else { return }
+        let zMid = paddleZ + Config3D.paddleDepth / 2
+        let distances: [CGFloat] = [
+            paddleXY.y + Tunnel.halfH,  // floor
+            Tunnel.halfH - paddleXY.y,  // ceiling
+            paddleXY.x + Tunnel.halfW,  // left wall
+            Tunnel.halfW - paddleXY.x,  // right wall
+        ]
+        var wall = 0
+        for i in 1..<4 where distances[i] < distances[wall] { wall = i }
+
+        let anchors: [Vec3] = [
+            Vec3(x: paddleXY.x, y: -Tunnel.halfH, z: zMid),
+            Vec3(x: paddleXY.x, y: Tunnel.halfH, z: zMid),
+            Vec3(x: -Tunnel.halfW, y: paddleXY.y, z: zMid),
+            Vec3(x: Tunnel.halfW, y: paddleXY.y, z: zMid),
+        ]
+        let halfSpan = wall < 2 ? Tunnel.halfH : Tunnel.halfW
+        let proximity = 1 - min(distances[wall] / halfSpan, 1) // 1 at the wall, 0 at center
+
+        shadow.isHidden = false
+        shadow.position = Tunnel.project(anchors[wall], in: size)
+        shadow.zRotation = wall < 2 ? 0 : .pi / 2 // upright ellipse on side walls
+        let depthScale = Tunnel.scale(at: zMid)
+        shadow.setScale(depthScale * (0.9 + 1.1 * proximity))
+        shadow.alpha = 0.15 + 0.55 * proximity
+        shadow.zPosition = 2000 - zMid - 25
     }
 
     // MARK: - Pause
@@ -772,7 +858,7 @@ final class GameScene3D: SKScene {
             shadow.position = Tunnel.project(anchors[i], in: size)
             let spread = 1 + distances[i] / 900
             shadow.setScale(depthScale * spread)
-            shadow.alpha = max(0.08, 0.50 - distances[i] / spans[i] * 0.42)
+            shadow.alpha = max(0.16, 0.72 - distances[i] / spans[i] * 0.55)
             shadow.zPosition = 2000 - ballPos.z - 25
         }
     }
