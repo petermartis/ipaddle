@@ -242,11 +242,12 @@ final class Brick3D {
             }
             cg.restoreGState()
 
-            // 5. faint neon rim so the palette still glows, without a hard
-            // sticker outline
-            cg.setShadow(offset: .zero, blur: 7,
-                         color: shaded(base, 1.5).cgColor)
-            cg.setStrokeColor(shaded(base, 1.45).withAlphaComponent(0.55).cgColor)
+            // 5. dark contour rim — a shade deeper than the body, with only
+            // a whisper of colored glow, so the edge reads as the surface
+            // turning away rather than a neon outline
+            cg.setShadow(offset: .zero, blur: 4,
+                         color: shaded(base, 1.15).withAlphaComponent(0.35).cgColor)
+            cg.setStrokeColor(shaded(base, 0.55).withAlphaComponent(0.9).cgColor)
             cg.setLineWidth(1.5)
             cg.addPath(rounded.cgPath)
             cg.strokePath()
