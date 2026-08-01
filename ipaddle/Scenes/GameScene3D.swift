@@ -28,7 +28,6 @@ final class GameScene3D: SKScene {
     private var paddleNode: SKNode?
     private var paddleFront: SKShapeNode?
     private var paddleBack: SKShapeNode?
-    private var paddleRails: SKShapeNode?
     private var paddleZ: CGFloat = 0
     private var pinchStartZ: CGFloat = 0
     private var lastPinchZone = 0
@@ -278,14 +277,6 @@ final class GameScene3D: SKScene {
         back.zPosition = 0
         container.addChild(back)
         paddleBack = back
-
-        let rails = SKShapeNode()
-        rails.strokeColor = SKColor(red: 0.88, green: 0.97, blue: 1.0, alpha: 0.7)
-        rails.lineWidth = 1.5
-        rails.lineCap = .round
-        rails.zPosition = 1
-        container.addChild(rails)
-        paddleRails = rails
 
         let front = SKShapeNode()
         front.fillColor = SKColor(red: 0.72, green: 0.86, blue: 1.0, alpha: 0.20)
@@ -538,15 +529,6 @@ final class GameScene3D: SKScene {
         // gently rounded corners — softer than crystal, firmer than a brick
         paddleFront?.path = Draw.roundedPolygon(f, radius: 15 * Tunnel.scale(at: zFront))
         paddleBack?.path = Draw.roundedPolygon(b, radius: 15 * Tunnel.scale(at: zBack))
-
-        // corner-to-corner rails between the panes, round-capped to keep
-        // the silhouette soft
-        let rails = CGMutablePath()
-        for i in 0..<4 {
-            rails.move(to: f[i])
-            rails.addLine(to: b[i])
-        }
-        paddleRails?.path = rails
 
         // stay correctly sorted against the ball and walls at this depth
         paddleNode?.zPosition = 2000 - paddleZ + 8
