@@ -95,7 +95,7 @@ enum Draw {
 
 enum Config3D {
     static let paddleSize = CGSize(width: 180, height: 130) // world units at z = 0
-    static let paddleDepth: CGFloat = 34                    // z thickness of the paddle slab
+    static let paddleDepth: CGFloat = 20                    // z thickness of the paddle slab
     static let maxPaddleZ: CGFloat = 820                    // how deep pinch can push the paddle
     static let pinchSensitivity: CGFloat = 1100             // z units per pinch-scale unit
     static let pinchZones = 6                               // audible depth steps

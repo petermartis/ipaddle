@@ -35,7 +35,6 @@ final class GameScene3D: SKScene {
     private var pinchRecognizer: UIPinchGestureRecognizer?
     /// Paddle shadows on floor, ceiling, left, right — proximity-gated.
     private var paddleShadows: [SKShapeNode] = []
-    private var paddleFacets: SKShapeNode?
     private var scoreLabel: SKLabelNode?
     private var livesLabel: SKLabelNode?
     private var hintLabel: SKLabelNode?
@@ -283,17 +282,10 @@ final class GameScene3D: SKScene {
         let rails = SKShapeNode()
         rails.strokeColor = SKColor(red: 0.88, green: 0.97, blue: 1.0, alpha: 0.7)
         rails.lineWidth = 1.5
+        rails.lineCap = .round
         rails.zPosition = 1
         container.addChild(rails)
         paddleRails = rails
-
-        // diagonal facet lines across the front pane: the "cut gem" look
-        let facets = SKShapeNode()
-        facets.strokeColor = SKColor(red: 0.88, green: 0.97, blue: 1.0, alpha: 0.30)
-        facets.lineWidth = 1
-        facets.zPosition = 2
-        container.addChild(facets)
-        paddleFacets = facets
 
         let front = SKShapeNode()
         front.fillColor = SKColor(red: 0.72, green: 0.86, blue: 1.0, alpha: 0.20)
@@ -543,23 +535,18 @@ final class GameScene3D: SKScene {
         }
         let f = [pt(-hw, -hh, zFront), pt(hw, -hh, zFront), pt(hw, hh, zFront), pt(-hw, hh, zFront)]
         let b = [pt(-hw, -hh, zBack), pt(hw, -hh, zBack), pt(hw, hh, zBack), pt(-hw, hh, zBack)]
-        // near-sharp corners: cut crystal, not molded plastic
-        paddleFront?.path = Draw.roundedPolygon(f, radius: 5 * Tunnel.scale(at: zFront))
-        paddleBack?.path = Draw.roundedPolygon(b, radius: 5 * Tunnel.scale(at: zBack))
+        // gently rounded corners — softer than crystal, firmer than a brick
+        paddleFront?.path = Draw.roundedPolygon(f, radius: 15 * Tunnel.scale(at: zFront))
+        paddleBack?.path = Draw.roundedPolygon(b, radius: 15 * Tunnel.scale(at: zBack))
 
-        // corner-to-corner rails between the panes
+        // corner-to-corner rails between the panes, round-capped to keep
+        // the silhouette soft
         let rails = CGMutablePath()
         for i in 0..<4 {
             rails.move(to: f[i])
             rails.addLine(to: b[i])
         }
         paddleRails?.path = rails
-
-        // gem facets: diagonals across the front pane
-        let facets = CGMutablePath()
-        facets.move(to: f[0]); facets.addLine(to: f[2])
-        facets.move(to: f[1]); facets.addLine(to: f[3])
-        paddleFacets?.path = facets
 
         // stay correctly sorted against the ball and walls at this depth
         paddleNode?.zPosition = 2000 - paddleZ + 8
